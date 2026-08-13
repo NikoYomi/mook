@@ -3,6 +3,14 @@ import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { AlertIcon, RefreshIcon } from '../components/icons'
 
+// 错误/下载相关关键词 → 行文字标红，网络错误前缀等常见词也覆盖
+const ERR_RE =
+  /\b(error|failed|failure|fatal|denied|refused|exception|panic|killed|not found|no such file|no such directory|unable to|cannot|could not|command not found|permission denied|syntax error|unrecognized|segmentation fault|traceback)\b|\b(错误|失败|拒绝|无法|无效|找不到|不存在|超时|异常|无权限|权限被拒绝)\b/i
+// 形如 user@host ... $ / # / % [命令] 的提示符行（含用户输入回显）→ 标绿
+const PROMPT_RE = /^[^\n]*@[^\n]*[\$#>%](?:\s+\S+.*)?$/
+// 行首的回车 / ANSI 控制序列（如 \r \x1b[0m \x1b[J），在其后插入颜色以绕过 reset
+const ANSI_LEAD_RE = /^(\r\n?|\x1b\[[0-9;?]*[A-Za-z])*/
+
 interface Props {
   tabKey: number
   serverId: number
@@ -39,6 +47,8 @@ export default function TerminalTab({
         cursor: '#22c55e',
         cursorAccent: '#020617',
         selectionBackground: 'rgba(34, 197, 94, 0.25)',
+        red: '#f87171',
+        green: '#22c55e',
       },
       scrollback: 5000,
     })
@@ -72,6 +82,47 @@ export default function TerminalTab({
       }
     }
 
+    // 对输出按行注入 ANSI 颜色：错误行红、提示符/用户输入行绿
+    const decorateLine = (line: string) => {
+      const leadMatch = ANSI_LEAD_RE.exec(line)
+      const lead = leadMatch ? leadMatch[0] : ''
+      const rest = line.slice(lead.length)
+      if (!rest) return line
+      if (ERR_RE.test(rest)) return `${lead}\x1b[31m${rest}\x1b[0m`
+      if (PROMPT_RE.test(rest)) return `${lead}\x1b[32m${rest}\x1b[0m`
+      return line
+    }
+    // 按行注入 ANSI 颜色：错误行红、提示符/用户输入行绿。
+    // 行以 \n 或 \r 分隔；无分隔符的尾部（如未换行的提示符）立即输出，避免暂存导致不显示。
+    let pending = ''
+    const decorate = (chunk: string) => {
+      pending += chunk
+      let out = ''
+      let buf = pending
+      pending = ''
+      while (buf.length > 0) {
+        const ci = buf.search(/[\r\n]/)
+        if (ci === -1) {
+          out += decorateLine(buf)
+          break
+        }
+        out += decorateLine(buf.slice(0, ci))
+        if (buf[ci] === '\n') {
+          out += '\n'
+          buf = buf.slice(ci + 1)
+        } else {
+          out += '\r'
+          if (buf[ci + 1] === '\n') {
+            out += '\n'
+            buf = buf.slice(ci + 2)
+          } else {
+            buf = buf.slice(ci + 1)
+          }
+        }
+      }
+      return out
+    }
+
     ws.onopen = () => {
       setStatus('connected')
       sendResize()
@@ -81,7 +132,7 @@ export default function TerminalTab({
       try {
         const m = JSON.parse(ev.data)
         if (m.type === 'output') {
-          term.write(m.data)
+          term.write(decorate(m.data))
         } else if (m.type === 'error') {
           setStatus('closed')
           setError(m.message || '连接失败')

@@ -5,7 +5,7 @@ import { useAuth } from '../store/auth'
 import { useAi } from '../store/ai'
 import Terminal from '../pages/Terminal'
 import Servers from '../pages/Servers'
-import Settings from '../pages/Settings'
+import SettingsModal, { type SettingsTab } from '../pages/Settings'
 import { friendlyModelName } from '../utils/command'
 import {
   ChevronDownIcon,
@@ -18,11 +18,10 @@ import {
 } from './icons'
 import type { IconProps } from './icons'
 
-type View = 'terminal' | 'servers' | 'settings'
+type View = 'terminal' | 'servers'
 
 function viewOf(pathname: string): View {
   if (pathname.startsWith('/terminal')) return 'terminal'
-  if (pathname.startsWith('/settings')) return 'settings'
   return 'servers'
 }
 
@@ -39,14 +38,13 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'terminal', label: '终端', to: '/terminal', icon: TerminalIcon },
 ]
 
-function AiBadge() {
-  const navigate = useNavigate()
+function AiBadge({ onOpen }: { onOpen: () => void }) {
   const settings = useAi((s) => s.settings)
   const validated = Boolean(settings?.validated)
 
   return (
     <button
-      onClick={() => navigate('/settings')}
+      onClick={onOpen}
       title={validated ? '点击配置 / 修改 AI 密钥' : '尚未启用，点击去设置 AI 密钥'}
       className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors duration-150 ${
         validated
@@ -70,6 +68,8 @@ export default function Workspace() {
   const view = viewOf(pathname)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('ai')
 
   useEffect(() => {
     refreshAi()
@@ -129,14 +129,18 @@ export default function Workspace() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <AiBadge />
+          <AiBadge
+            onOpen={() => {
+              setSettingsTab('ai')
+              setSettingsOpen(true)
+            }}
+          />
           <button
-            onClick={() => navigate('/settings')}
-            className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors duration-150 ${
-              view === 'settings'
-                ? 'bg-raise text-ink'
-                : 'text-soft hover:bg-panel-2 hover:text-ink'
-            }`}
+            onClick={() => {
+              setSettingsTab('ai')
+              setSettingsOpen(true)
+            }}
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] text-soft transition-colors duration-150 hover:bg-panel-2 hover:text-ink"
             title="设置"
             aria-label="设置"
           >
@@ -187,13 +191,18 @@ export default function Workspace() {
       </header>
 
       <main className="relative min-h-0 flex-1">
-        {/* 终端页面常驻挂载：切到服务器/设置时保留会话，返回无需重连 */}
+        {/* 终端页面常驻挂载：切到服务器时保留会话，返回无需重连 */}
         <div className={view === 'terminal' ? 'h-full' : 'hidden'}>
           <Terminal serverId={terminalMatch ? terminalMatch[1] : undefined} />
         </div>
         {view === 'servers' && <Servers />}
-        {view === 'settings' && <Settings />}
       </main>
+
+      <SettingsModal
+        open={settingsOpen}
+        initialTab={settingsTab}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   )
 }

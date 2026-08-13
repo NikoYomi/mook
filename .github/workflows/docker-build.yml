@@ -9,19 +9,38 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  GHCR_REGISTRY: ghcr.io
+  DOCKER_USERNAME: nikoyomi
+  IMAGE_NAME: mook
+
+permissions:
+  contents: write # 允许创建 Release
+  packages: write # 允许推送 GHCR
 
 jobs:
   build:
     name: Build and push image
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # 1. 提取 Docker 元数据（标签规则）
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.GHCR_REGISTRY }}/${{ github.repository }}
+            ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -29,30 +48,50 @@ jobs:
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate image tags
-        id: meta
-        shell: bash
-        run: |
-          IMG=$(echo "${REGISTRY}/${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
-          echo "image=${IMG}" >> "${GITHUB_OUTPUT}"
-          TAGS="${IMG}:latest"
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            TAGS="${TAGS},${IMG}:${GITHUB_REF_NAME}"
-            TAGS="${TAGS},${IMG}:${GITHUB_REF_NAME#v}"
-          fi
-          TAGS="${TAGS},${IMG}:sha-${GITHUB_SHA::7}"
-          echo "tags=${TAGS}" >> "${GITHUB_OUTPUT}"
+      # 可选：仅在配置了 DOCKER_PASSWORD 密钥时推送 Docker Hub
+      - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKER_PASSWORD != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # 打 tag 时：从 README「更新日志」提取对应版本说明
+      - name: Extract release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          TAG_NAME=${{ github.ref_name }}
+          awk -v tag="$TAG_NAME" '
+            $0 ~ "### " tag { flag=1; next }
+            flag && /^### / { exit }
+            flag { print }
+          ' README.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "Release $TAG_NAME" > release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.md
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false

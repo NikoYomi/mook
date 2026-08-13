@@ -8,6 +8,7 @@ export interface Server {
   tags: string[]
   created_at: string
   updated_at: string
+  last_connected_at: string
 }
 
 export interface ServerInput {
@@ -65,6 +66,22 @@ export interface BackupData {
   servers: BackupServerItem[]
   settings: Record<string, string>
   common_commands?: unknown
+}
+
+export interface ServerStats {
+  latency_ms: number
+  cores: number
+  cpu_percent: number
+  load1: number
+  load5: number
+  load15: number
+  mem_total: number
+  mem_used: number
+  disk_total: number
+  disk_used: number
+  net_rx: number
+  net_tx: number
+  ts: number
 }
 
 async function doRequest<T>(path: string, options: RequestInit): Promise<T> {
@@ -136,6 +153,9 @@ export const api = {
     request<{ ok: boolean }>(`/api/servers/${serverId}/files/rename`, { method: 'POST', body: JSON.stringify({ old_path, new_path }) }),
   remove: (serverId: number, path: string) =>
     request<{ ok: boolean }>(`/api/servers/${serverId}/files/remove`, { method: 'POST', body: JSON.stringify({ path }) }),
+
+  // ---- 服务器实时状态 ----
+  serverStats: (id: number) => request<ServerStats>(`/api/servers/${id}/stats`),
 
   // ---- 账户 ----
   changeUsername: (username: string) =>

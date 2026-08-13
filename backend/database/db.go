@@ -61,7 +61,35 @@ func migrate(db *sql.DB) error {
 			return fmt.Errorf("初始化表结构失败: %w", err)
 		}
 	}
+	// 增量迁移：为已有数据库补充新增列
+	if err := ensureColumn(db, "servers", "last_connected_at", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("迁移表结构失败: %w", err)
+	}
 	return nil
+}
+
+// ensureColumn 检查列是否存在，不存在则补充（用于增量迁移）
+func ensureColumn(db *sql.DB, table, column, ddl string) error {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notnull int
+		var dflt any
+		var pk int
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	_, err = db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + ddl)
+	return err
 }
 
 // nowStr 统一的存储时间格式

@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Modal from '../components/Modal'
 import { api, type BackupData } from '../api/client'
 import { useAuth } from '../store/auth'
 import { useAi } from '../store/ai'
@@ -23,17 +24,27 @@ import {
   ZapIcon,
 } from '../components/icons'
 
+export type SettingsTab = 'ai' | 'account' | 'backup' | 'about'
+
 function unique(list: string[]): string[] {
   return Array.from(new Set(list.filter(Boolean)))
 }
 
-export default function Settings() {
+interface Props {
+  open: boolean
+  initialTab?: SettingsTab
+  onClose: () => void
+}
+
+export default function SettingsModal({ open, initialTab = 'ai', onClose }: Props) {
+  const [tab, setTab] = useState<SettingsTab>(initialTab)
   const [baseUrl, setBaseUrl] = useState('https://api.deepseek.com')
   const [model, setModel] = useState('deepseek-chat')
   const [apiKey, setApiKey] = useState('')
   const [hasKey, setHasKey] = useState(false)
   const [validated, setValidated] = useState(false)
   const [providerId, setProviderId] = useState('deepseek')
+  const [customName, setCustomName] = useState('')
   const [liveModels, setLiveModels] = useState<string[]>([])
   const [modelManual, setModelManual] = useState(false)
   const [modelsLoading, setModelsLoading] = useState(false)
@@ -67,7 +78,16 @@ export default function Settings() {
 
   const provider = useMemo(() => AI_PROVIDERS.find((p) => p.id === providerId), [providerId])
 
+  // 外部指定初始子菜单时同步
   useEffect(() => {
+    if (open) setTab(initialTab)
+  }, [open, initialTab])
+
+  useEffect(() => {
+    if (!open) return
+    setError('')
+    setSaved('')
+    setValidateError('')
     api
       .getAiSettings()
       .then((s) => {
@@ -79,7 +99,7 @@ export default function Settings() {
         setProviderId(p ? p.id : 'custom')
       })
       .catch((err) => setError(err instanceof Error ? err.message : '读取设置失败'))
-  }, [])
+  }, [open])
 
   useEffect(() => {
     setUsernameInput(user ?? '')
@@ -87,15 +107,12 @@ export default function Settings() {
 
   function selectProvider(id: string) {
     setProviderId(id)
-    const p = AI_PROVIDERS.find((x) => x.id === id)
-    if (p && p.baseUrl) setBaseUrl(p.baseUrl)
     setLiveModels([])
     setModelsMsg('')
-    if (p && p.models.length > 0) {
-      setModelManual(false)
-      setModel((cur) => (p.models.includes(cur) ? cur : p.models[0]))
-    } else {
-      setModelManual(id === 'custom' || p?.models.length === 0)
+    const p = AI_PROVIDERS.find((x) => x.id === id)
+    if (p) {
+      setBaseUrl(p.baseUrl)
+      setModelManual(id === 'custom')
     }
   }
 
@@ -105,22 +122,36 @@ export default function Settings() {
     try {
       const res = await api.listModels(baseUrl.trim(), apiKey.trim())
       if (res.models.length === 0) {
-        setModelsMsg('接口未返回模型列表，请使用预设模型或手动输入')
+        setLiveModels([])
+        setModelsMsg('接口未返回可用模型，请检查 API Key 或接口地址')
       } else {
         setLiveModels(res.models)
         setModelsMsg(`获取到 ${res.models.length} 个可用模型`)
       }
     } catch (err) {
-      setModelsMsg(err instanceof Error ? err.message : '获取模型列表失败')
+      setLiveModels([])
+      setModelsMsg(
+        err instanceof Error
+          ? err.message.replace(/^获取模型列表失败：/, '')
+          : '获取模型列表失败',
+      )
     } finally {
       setModelsLoading(false)
     }
   }
 
-  const modelOptions = useMemo(
-    () => unique([...(provider?.models ?? []), ...liveModels, model]),
-    [provider, liveModels, model],
-  )
+  // 输入 API Key（或切换厂商/接口地址，本地 Ollama 无需密钥）后自动拉取模型
+  useEffect(() => {
+    if (!baseUrl.trim()) return
+    if (!apiKey.trim() && provider?.id !== 'ollama') return
+    const t = setTimeout(() => {
+      fetchModels()
+    }, 600)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey, baseUrl, providerId])
+
+  const modelOptions = useMemo(() => unique([...liveModels, model]), [liveModels, model])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -274,110 +305,138 @@ export default function Settings() {
     }
   }
 
+  const menu: { key: SettingsTab; label: string; icon: typeof SparklesIcon }[] = [
+    { key: 'ai', label: 'AI 助手', icon: SparklesIcon },
+    { key: 'account', label: '账户安全', icon: ShieldIcon },
+    { key: 'backup', label: '备份与还原', icon: ZapIcon },
+    { key: 'about', label: '关于', icon: TerminalIcon },
+  ]
+
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-2xl space-y-4 p-6">
-        <div>
-          <h1 className="text-[15px] font-semibold text-ink">设置</h1>
-          <p className="mt-0.5 text-xs text-soft">AI 助手 · 账户安全 · 备份与还原</p>
-        </div>
+    <Modal
+      open={open}
+      title="设置"
+      description="AI 助手 · 账户安全 · 备份与还原"
+      onClose={onClose}
+      width="md"
+      height="h-[540px]"
+    >
+      <div className="flex h-full min-h-0 flex-col gap-4 sm:flex-row">
+        {/* 子菜单 */}
+        <nav className="flex shrink-0 gap-1 overflow-x-auto sm:w-40 sm:flex-col sm:border-r sm:border-line sm:pr-2">
+          {menu.map((item) => {
+            const Icon = item.icon
+            const active = tab === item.key
+            return (
+              <button
+                key={item.key}
+                onClick={() => setTab(item.key)}
+                className={`flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-[13px] transition-colors duration-150 ${
+                  active
+                    ? 'bg-accent-dim text-accent-bright'
+                    : 'text-soft hover:bg-panel-2 hover:text-ink'
+                }`}
+              >
+                <Icon size={15} className={active ? 'text-accent' : 'text-faint'} />
+                {item.label}
+              </button>
+            )
+          })}
+        </nav>
 
-        {/* ===== AI 助手 ===== */}
-        <div className="card p-5">
-          <div className="mb-4 flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/15 bg-accent-dim text-accent">
-              <SparklesIcon size={18} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-semibold text-ink">AI 助手</h2>
-              <p className="mt-0.5 text-xs leading-relaxed text-soft">
-                选择厂商 → 填入 API Key → 选择模型。保存时自动校验，通过后右上角显示「AI终端：模型名」。
-              </p>
-            </div>
-          </div>
-
-          <div
-            className={`mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-[13px] ${
-              validated
-                ? 'border-accent/25 bg-accent-dim text-accent-bright'
-                : 'border-line bg-panel-2 text-faint'
-            }`}
-          >
-            {validated ? (
-              <CheckCircleIcon size={15} className="shrink-0" />
-            ) : (
-              <XCircleIcon size={15} className="shrink-0" />
-            )}
-            <span>
-              {validated
-                ? `当前状态：已验证 · ${friendlyModelName(model)}`
-                : '当前状态：未启用（未配置或密钥未通过验证）'}
-            </span>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-3.5">
-            <div>
-              <span className="label">选择厂商</span>
-              <div className="flex flex-wrap gap-1.5">
-                {AI_PROVIDERS.map((p) => (
-                  <button
-                    type="button"
-                    key={p.id}
-                    onClick={() => selectProvider(p.id)}
-                    className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors duration-150 ${
-                      providerId === p.id
-                        ? 'border-accent/40 bg-accent-dim text-accent-bright'
-                        : 'border-line bg-panel-2 text-soft hover:border-line-strong hover:text-ink'
-                    }`}
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <label className="block">
-              <span className="label">接口地址（Base URL）</span>
-              <input
-                value={baseUrl}
-                onChange={(e) => {
-                  setBaseUrl(e.target.value)
-                  const p = providerByBaseUrl(e.target.value)
-                  if (p) setProviderId(p.id)
-                }}
-                className="input font-mono"
-                placeholder="https://api.deepseek.com"
-              />
-            </label>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="label">模型</span>
-                {modelManual ? (
-                  <input
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="input font-mono"
-                    placeholder="手动输入模型名"
-                  />
+        {/* 内容区 */}
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          {tab === 'ai' && (
+            <div className="space-y-3.5">
+              <div
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[13px] ${
+                  validated
+                    ? 'border-accent/25 bg-accent-dim text-accent-bright'
+                    : 'border-line bg-panel-2 text-faint'
+                }`}
+              >
+                {validated ? (
+                  <CheckCircleIcon size={15} className="shrink-0" />
                 ) : (
+                  <XCircleIcon size={15} className="shrink-0" />
+                )}
+                <span>
+                  {validated
+                    ? `当前状态：已验证 · ${
+                        providerId === 'custom' && customName
+                          ? customName
+                          : model
+                            ? friendlyModelName(model)
+                            : 'AI 已启用'
+                      }`
+                    : '当前状态：未启用'}
+                </span>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-3.5">
+                <div>
+                  <span className="label">选择厂商</span>
                   <select
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
+                    value={providerId}
+                    onChange={(e) => selectProvider(e.target.value)}
                     className="input cursor-pointer font-mono"
                   >
-                    {modelOptions.map((m) => (
-                      <option key={m} value={m} className="bg-panel text-ink">
-                        {m}
+                    {AI_PROVIDERS.map((p) => (
+                      <option key={p.id} value={p.id} className="bg-panel text-ink">
+                        {p.name}
                       </option>
                     ))}
                   </select>
-                )}
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-[11px] text-faint">
-                    {modelsMsg || (liveModels.length > 0 ? `${liveModels.length} 个可用模型` : '预设模型列表')}
+                  {providerId === 'custom' && (
+                    <input
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      className="input mt-2 font-mono"
+                      placeholder="自定义厂商名称"
+                    />
+                  )}
+                </div>
+
+                <label className="block">
+                  <span className="label">接口地址（Base URL）</span>
+                  <input
+                    value={baseUrl}
+                    onChange={(e) => {
+                      setBaseUrl(e.target.value)
+                      const p = providerByBaseUrl(e.target.value)
+                      if (p) setProviderId(p.id)
+                    }}
+                    className="input font-mono"
+                    placeholder="https://api.deepseek.com"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="label flex items-center gap-1.5">
+                    API Key
+                    {hasKey && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent-dim px-2 py-0.5 text-[11px] font-normal text-accent-bright">
+                        <CheckCircleIcon size={11} /> 已配置
+                      </span>
+                    )}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    className="input font-mono"
+                    placeholder={hasKey ? '••••••••（留空则不修改）' : 'sk-...'}
+                  />
+                  <span className="mt-1 block text-[11px] text-faint">
+                    {provider?.id === 'ollama'
+                      ? '本地 Ollama 无需密钥，自动识别本地模型'
+                      : '填写 API Key 后将自动获取该密钥支持的模型'}
+                  </span>
+                </label>
+
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="label">模型</span>
                     <button
                       type="button"
                       onClick={() => setModelManual((v) => !v)}
@@ -385,6 +444,34 @@ export default function Settings() {
                     >
                       {modelManual ? '用下拉选择' : '手动输入'}
                     </button>
+                  </div>
+                  {modelManual ? (
+                    <input
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="input font-mono"
+                      placeholder="手动输入模型名"
+                    />
+                  ) : (
+                    <select
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="input cursor-pointer font-mono"
+                    >
+                      {modelOptions.map((m) => (
+                        <option key={m} value={m} className="bg-panel text-ink">
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-faint">
+                      {modelsMsg ||
+                        (liveModels.length > 0
+                          ? `${liveModels.length} 个可用模型`
+                          : '填写 API Key 后自动获取该密钥支持的模型')}
+                    </span>
                     <button
                       type="button"
                       onClick={fetchModels}
@@ -395,133 +482,99 @@ export default function Settings() {
                     </button>
                   </div>
                 </div>
-              </label>
 
-              <label className="block">
-                <span className="label flex items-center gap-1.5">
-                  API Key
-                  {hasKey && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent-dim px-2 py-0.5 text-[11px] font-normal text-accent-bright">
-                      <CheckCircleIcon size={11} /> 已配置
-                    </span>
-                  )}
-                </span>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="input font-mono"
-                  placeholder={hasKey ? '••••••••（留空则不修改）' : 'sk-...'}
-                />
-                <span className="mt-1 block text-[11px] text-faint">
-                  {provider?.id === 'ollama' ? '本地 Ollama 可留空' : '填写后点击「获取可用模型」可自动识别该密钥支持的模型'}
-                </span>
-              </label>
-            </div>
-
-            {error && (
-              <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-red-300">
-                <AlertIcon size={14} className="shrink-0 text-danger" />
-                {error}
-              </div>
-            )}
-            {validateError && (
-              <div className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[13px] text-amber-300">
-                <AlertIcon size={14} className="mt-0.5 shrink-0 text-warn" />
-                <span className="min-w-0 break-all">{validateError}</span>
-              </div>
-            )}
-            {saved && (
-              <div className="flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-dim px-3 py-2 text-[13px] text-accent-bright">
-                <CheckCircleIcon size={14} className="shrink-0" />
-                {saved}
-              </div>
-            )}
-
-            <div className="flex justify-end pt-1">
-              <button type="submit" disabled={busy} className="btn-primary">
-                {busy ? (
-                  <>
-                    <LoaderIcon size={14} className="animate-spin" /> 保存并验证中…
-                  </>
-                ) : (
-                  '保存设置'
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* ===== 账户安全 ===== */}
-        <div className="card p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-info/15 bg-info/10 text-info">
-              <ShieldIcon size={18} />
-            </span>
-            <div>
-              <h2 className="text-sm font-semibold text-ink">账户安全</h2>
-              <p className="mt-0.5 text-xs text-soft">
-                修改用户名可避免默认 admin 被爆破；建议定期更换密码
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <form onSubmit={handleUsername} className="space-y-2">
-              <label className="block">
-                <span className="label">用户名</span>
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <UserIcon
-                      size={15}
-                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
-                    />
-                    <input
-                      value={username}
-                      onChange={(e) => setUsernameInput(e.target.value)}
-                      className="input pl-9"
-                      placeholder="admin"
-                    />
+                {error && (
+                  <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-red-300">
+                    <AlertIcon size={14} className="shrink-0 text-danger" />
+                    {error}
                   </div>
-                  <button type="submit" disabled={accountBusy} className="btn-primary flex-none">
-                    保存用户名
-                  </button>
-                </div>
-              </label>
-            </form>
+                )}
+                {validateError && (
+                  <div className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[13px] text-amber-300">
+                    <AlertIcon size={14} className="mt-0.5 shrink-0 text-warn" />
+                    <span className="min-w-0 break-all">{validateError}</span>
+                  </div>
+                )}
+                {saved && (
+                  <div className="flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-dim px-3 py-2 text-[13px] text-accent-bright">
+                    <CheckCircleIcon size={14} className="shrink-0" />
+                    {saved}
+                  </div>
+                )}
 
-            <form onSubmit={handlePassword} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <label className="block">
-                <span className="label">当前密码</span>
-                <input
-                  type="password"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  className="input"
-                  autoComplete="current-password"
-                />
-              </label>
-              <label className="block">
-                <span className="label">新密码（至少 6 位）</span>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="input"
-                  autoComplete="new-password"
-                />
-              </label>
-              <label className="block">
-                <span className="label">确认新密码</span>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="input"
-                  autoComplete="new-password"
-                />
-              </label>
-              <div className="sm:col-span-3">
+                {(liveModels.length > 0 || (hasKey && !apiKey.trim())) && (
+                  <div className="flex justify-end pt-1">
+                    <button type="submit" disabled={busy || modelsLoading} className="btn-primary">
+                      {busy ? (
+                        <>
+                          <LoaderIcon size={14} className="animate-spin" /> 保存并验证中…
+                        </>
+                      ) : (
+                        '保存设置'
+                      )}
+                    </button>
+                  </div>
+                )}
+              </form>
+            </div>
+          )}
+
+          {tab === 'account' && (
+            <div className="space-y-4">
+              <form onSubmit={handleUsername} className="space-y-2">
+                <label className="block">
+                  <span className="label">用户名</span>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <UserIcon
+                        size={15}
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+                      />
+                      <input
+                        value={username}
+                        onChange={(e) => setUsernameInput(e.target.value)}
+                        className="input pl-9"
+                        placeholder="admin"
+                      />
+                    </div>
+                    <button type="submit" disabled={accountBusy} className="btn-primary flex-none">
+                      保存用户名
+                    </button>
+                  </div>
+                </label>
+              </form>
+
+              <form onSubmit={handlePassword} className="space-y-3">
+                <label className="block">
+                  <span className="label">当前密码</span>
+                  <input
+                    type="password"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    className="input"
+                    autoComplete="current-password"
+                  />
+                </label>
+                <label className="block">
+                  <span className="label">新密码（至少 6 位）</span>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="input"
+                    autoComplete="new-password"
+                  />
+                </label>
+                <label className="block">
+                  <span className="label">确认新密码</span>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="input"
+                    autoComplete="new-password"
+                  />
+                </label>
                 <button type="submit" disabled={accountBusy} className="btn-ghost">
                   {accountBusy ? (
                     <>
@@ -531,111 +584,105 @@ export default function Settings() {
                     '修改密码'
                   )}
                 </button>
-              </div>
-            </form>
+              </form>
 
-            {accountError && (
-              <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-red-300">
-                <AlertIcon size={14} className="shrink-0 text-danger" />
-                {accountError}
-              </div>
-            )}
-            {accountMsg && (
-              <div className="flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-dim px-3 py-2 text-[13px] text-accent-bright">
-                <CheckCircleIcon size={14} className="shrink-0" />
-                {accountMsg}
-              </div>
-            )}
-          </div>
-        </div>
+              {accountError && (
+                <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-red-300">
+                  <AlertIcon size={14} className="shrink-0 text-danger" />
+                  {accountError}
+                </div>
+              )}
+              {accountMsg && (
+                <div className="flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-dim px-3 py-2 text-[13px] text-accent-bright">
+                  <CheckCircleIcon size={14} className="shrink-0" />
+                  {accountMsg}
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* ===== 备份与还原 ===== */}
-        <div className="card p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-warn/15 bg-warn/10 text-warn">
-              <ZapIcon size={18} />
-            </span>
-            <div>
-              <h2 className="text-sm font-semibold text-ink">备份与还原</h2>
-              <p className="mt-0.5 text-xs text-soft">
-                备份包含：常用命令、服务器配置（含凭据密文）、AI 相关设置
+          {tab === 'backup' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <button onClick={handleExport} disabled={backupBusy} className="btn-primary">
+                  {backupBusy ? (
+                    <>
+                      <LoaderIcon size={14} className="animate-spin" /> 处理中…
+                    </>
+                  ) : (
+                    <>
+                      <DownloadIcon size={14} /> 导出备份
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => importRef.current?.click()}
+                  disabled={backupBusy}
+                  className="btn-ghost"
+                >
+                  <UploadIcon size={14} /> 导入备份
+                </button>
+                <input
+                  ref={importRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={(e) => handleImportFile(e.target.files?.[0])}
+                />
+              </div>
+
+              {backupError && (
+                <div className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-red-300">
+                  <AlertIcon size={14} className="mt-0.5 shrink-0 text-danger" />
+                  <span className="min-w-0 break-all">{backupError}</span>
+                </div>
+              )}
+              {backupMsg && (
+                <div className="flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-dim px-3 py-2 text-[13px] text-accent-bright">
+                  <CheckCircleIcon size={14} className="shrink-0" />
+                  <span className="min-w-0 break-all">{backupMsg}</span>
+                </div>
+              )}
+              <p className="text-[11px] leading-relaxed text-faint">
+                备份包含：常用命令、服务器配置（含凭据密文）、AI 相关设置。导入会
+                <strong className="text-soft">覆盖</strong>当前全部服务器与 AI 设置（常用命令也会被替换）。
+                凭据以服务端加密密文形式保存，请妥善保管备份文件。
               </p>
             </div>
-          </div>
+          )}
 
-          <div className="flex flex-wrap gap-2">
-            <button onClick={handleExport} disabled={backupBusy} className="btn-primary">
-              {backupBusy ? (
-                <>
-                  <LoaderIcon size={14} className="animate-spin" /> 处理中…
-                </>
-              ) : (
-                <>
-                  <DownloadIcon size={14} /> 导出备份
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => importRef.current?.click()}
-              disabled={backupBusy}
-              className="btn-ghost"
-            >
-              <UploadIcon size={14} /> 导入备份
-            </button>
-            <input
-              ref={importRef}
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={(e) => handleImportFile(e.target.files?.[0])}
-            />
-          </div>
-
-          {backupError && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-red-300">
-              <AlertIcon size={14} className="mt-0.5 shrink-0 text-danger" />
-              <span className="min-w-0 break-all">{backupError}</span>
+          {tab === 'about' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-panel-2 text-faint">
+                  <TerminalIcon size={15} />
+                </span>
+                <div>
+                  <h2 className="text-sm font-semibold text-ink">关于 Mook</h2>
+                  <p className="text-[11px] text-faint">v0.2.0 · AI 驱动的自托管 SSH 终端</p>
+                </div>
+              </div>
+              <ul className="space-y-2.5">
+                <li className="flex items-center gap-2.5 text-[13px] text-soft">
+                  <ShieldIcon size={18} className="shrink-0 text-accent" /> 凭据加密存储
+                </li>
+                <li className="flex items-center gap-2.5 text-[13px] text-soft">
+                  <GlobeIcon size={18} className="shrink-0 text-accent" /> 多厂商 AI 接入
+                </li>
+                <li className="flex items-center gap-2.5 text-[13px] text-soft">
+                  <TerminalIcon size={18} className="shrink-0 text-accent" /> 多标签 SSH 终端
+                </li>
+                <li className="flex items-center gap-2.5 text-[13px] text-soft">
+                  <ZapIcon size={18} className="shrink-0 text-accent" /> SFTP 文件管理
+                </li>
+                <li className="flex items-center gap-2.5 text-[13px] text-soft">
+                  <KeyIcon size={18} className="shrink-0 text-accent" /> 备份与还原
+                </li>
+              </ul>
             </div>
           )}
-          {backupMsg && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-dim px-3 py-2 text-[13px] text-accent-bright">
-              <CheckCircleIcon size={14} className="shrink-0" />
-              <span className="min-w-0 break-all">{backupMsg}</span>
-            </div>
-          )}
-          <p className="mt-3 text-[11px] leading-relaxed text-faint">
-            提示：导入会<strong className="text-soft">覆盖</strong>当前全部服务器与 AI 设置（常用命令也会被替换）。
-            凭据以服务端加密密文形式保存，请妥善保管备份文件。
-          </p>
-        </div>
-
-        {/* ===== 关于 ===== */}
-        <div className="card p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-panel-2 text-faint">
-              <TerminalIcon size={15} />
-            </span>
-            <div>
-              <h2 className="text-sm font-semibold text-ink">关于 Mook</h2>
-              <p className="text-[11px] text-faint">v0.1.0 · AI 驱动的自托管 SSH 终端</p>
-            </div>
-          </div>
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <li className="flex items-center gap-2 text-xs text-soft">
-              <ShieldIcon size={14} className="shrink-0 text-accent" /> 凭据加密存储 · 登录限流
-            </li>
-            <li className="flex items-center gap-2 text-xs text-soft">
-              <GlobeIcon size={14} className="shrink-0 text-accent" /> 多厂商 AI 接口（GPT / Gemini / Kimi / DeepSeek / 智谱 / Ollama）
-            </li>
-            <li className="flex items-center gap-2 text-xs text-soft">
-              <ZapIcon size={14} className="shrink-0 text-accent" /> 多标签 Web SSH + SFTP 文件管理
-            </li>
-            <li className="flex items-center gap-2 text-xs text-soft">
-              <KeyIcon size={14} className="shrink-0 text-accent" /> 备份与还原
-            </li>
-          </ul>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }

@@ -4,8 +4,10 @@ import Modal from '../components/Modal'
 import ServerForm from '../components/ServerForm'
 import type { Server, ServerInput } from '../api/client'
 import { useServers } from '../store/servers'
+import { formatDateTime } from '../utils/command'
 import {
   AlertIcon,
+  HistoryIcon,
   KeyIcon,
   LockIcon,
   PencilIcon,
@@ -140,7 +142,7 @@ export default function Servers() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
             {filtered.map((s) => (
               <div
                 key={s.id}
@@ -167,6 +169,16 @@ export default function Servers() {
                   >
                     {s.auth_type === 'key' ? <KeyIcon size={11} /> : <LockIcon size={11} />}
                     {s.auth_type === 'key' ? '私钥' : '密码'}
+                  </span>
+                </div>
+
+                <div className="mb-3 flex shrink-0 items-center gap-1.5 text-[11px] text-faint">
+                  <HistoryIcon size={12} className="shrink-0" />
+                  <span className="truncate">
+                    上次连接：
+                    <span className={s.last_connected_at ? 'text-soft' : ''}>
+                      {s.last_connected_at ? formatDateTime(s.last_connected_at) : '从未连接'}
+                    </span>
                   </span>
                 </div>
 

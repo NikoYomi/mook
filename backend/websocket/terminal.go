@@ -74,6 +74,7 @@ func HandleTerminal(db *sql.DB, secret string) http.HandlerFunc {
 			return
 		}
 		defer client.Close()
+		_ = database.UpdateLastConnected(db, serverID)
 
 		session, err := client.NewSession()
 		if err != nil {

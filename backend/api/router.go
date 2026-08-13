@@ -28,6 +28,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, secret string) http.Handler {
 	mux.Handle("POST /api/servers", authed(http.HandlerFunc(createServer(db, secret))))
 	mux.Handle("PUT /api/servers/{id}", authed(http.HandlerFunc(updateServer(db, secret))))
 	mux.Handle("DELETE /api/servers/{id}", authed(http.HandlerFunc(deleteServer(db))))
+	mux.Handle("GET /api/servers/{id}/stats", authed(http.HandlerFunc(serverStatsHandler(db, secret))))
 	mux.Handle("GET /api/servers/{id}/files", authed(http.HandlerFunc(handleListFiles(db, secret))))
 	mux.Handle("GET /api/servers/{id}/files/download", authed(http.HandlerFunc(handleDownloadFile(db, secret))))
 	mux.Handle("POST /api/servers/{id}/files/upload", authed(http.HandlerFunc(handleUploadFile(db, secret))))

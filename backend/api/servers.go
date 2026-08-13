@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"mook/database"
 	"mook/utils"
@@ -172,15 +173,20 @@ func buildServer(in *ServerInput, secret string, existing *database.Server) (*da
 }
 
 func toAPIServer(s *database.Server) *database.ServerAPI {
+	last := ""
+	if !s.LastConnectedAt.IsZero() {
+		last = s.LastConnectedAt.Format(time.RFC3339)
+	}
 	return &database.ServerAPI{
-		ID:        s.ID,
-		Name:      s.Name,
-		Host:      s.Host,
-		Port:      s.Port,
-		Username:  s.Username,
-		AuthType:  s.AuthType,
-		Tags:      s.Tags,
-		CreatedAt: s.CreatedAt,
-		UpdatedAt: s.UpdatedAt,
+		ID:              s.ID,
+		Name:            s.Name,
+		Host:            s.Host,
+		Port:            s.Port,
+		Username:        s.Username,
+		AuthType:        s.AuthType,
+		Tags:            s.Tags,
+		CreatedAt:       s.CreatedAt,
+		UpdatedAt:       s.UpdatedAt,
+		LastConnectedAt: last,
 	}
 }

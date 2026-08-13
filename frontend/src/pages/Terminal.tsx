@@ -272,16 +272,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
         )}
 
         <div className="min-w-0 flex-1">
-          {activeTab ? (
-            <TerminalTab
-              key={activeTab.key}
-              tabKey={activeTab.key}
-              serverId={activeTab.serverId}
-              serverName={activeTab.name}
-              registerExec={registerExec}
-              unregisterExec={unregisterExec}
-            />
-          ) : (
+          {tabs.length === 0 ? (
             <div className="flex h-full items-center justify-center">
               <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-line-strong bg-panel/40 px-10 py-12 text-center">
                 <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/20 bg-accent-dim text-accent">
@@ -298,6 +289,19 @@ export default function Terminal({ serverId }: { serverId?: string }) {
                 </button>
               </div>
             </div>
+          ) : (
+            // 所有标签页常驻挂载，切换时仅通过 CSS 显隐，保证 SSH 会话与历史记录不丢失
+            tabs.map((t, i) => (
+              <div key={t.key} className={i === active ? 'h-full' : 'hidden'}>
+                <TerminalTab
+                  tabKey={t.key}
+                  serverId={t.serverId}
+                  serverName={t.name}
+                  registerExec={registerExec}
+                  unregisterExec={unregisterExec}
+                />
+              </div>
+            ))
           )}
         </div>
 
