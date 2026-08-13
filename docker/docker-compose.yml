@@ -1,0 +1,24 @@
+services:
+  mook:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        # 国内网络拉取基础镜像失败时，用环境变量覆盖镜像源（见 README）
+        BASE_IMAGE: ${MOOK_REGISTRY:-docker.io/library}
+        NPM_REGISTRY: ${MOOK_NPM_REGISTRY:-https://registry.npmmirror.com}
+        GOPROXY: ${MOOK_GOPROXY:-https://goproxy.cn,direct}
+    image: mook/mook:0.1
+    container_name: mook
+    ports:
+      - "5866:5866"
+    volumes:
+      - mook-data:/data
+    environment:
+      - MOOK_PORT=5866
+      - MOOK_DATA=/data
+      # - MOOK_PASSWORD=请改成你的密码   # 可选：预设初始管理员密码
+    restart: unless-stopped
+
+volumes:
+  mook-data:

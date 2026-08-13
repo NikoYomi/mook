@@ -1,0 +1,17 @@
+# 数据与密钥
+data/
+*.db
+*.db-journal
+secret.key
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+
+# Go 构建产物
+backend/mook
+backend/*.exe
+
+# 系统
+.DS_Store
+Thumbs.db

@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #020617;
+  --color-panel: #0b1220;
+  --color-panel-2: #101a2e;
+  --color-raise: #1a2740;
+  --color-line: #1e293b;
+  --color-line-strong: #334155;
+  --color-ink: #f1f5f9;
+  --color-soft: #94a3b8;
+  --color-faint: #64748b;
+  --color-accent: #22c55e;
+  --color-accent-bright: #4ade80;
+  --color-accent-dim: #123524;
+  --color-danger: #ef4444;
+  --color-danger-dim: #3b1520;
+  --color-warn: #f59e0b;
+  --color-info: #38bdf8;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+    "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", "SFMono-Regular", Consolas,
+    "Courier New", monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  color-scheme: dark;
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(34, 197, 94, 0.28);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2a3a55;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #3b4f70;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-line bg-panel;
+  }
+  .btn-primary {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-semibold text-emerald-950 transition-colors duration-150 hover:bg-accent-bright disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-line bg-transparent px-3.5 py-2 text-[13px] font-medium text-soft transition-colors duration-150 hover:border-line-strong hover:bg-panel-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-danger {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-danger/25 bg-transparent px-3.5 py-2 text-[13px] font-medium text-danger transition-colors duration-150 hover:border-danger/40 hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-soft {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-accent-dim px-3 py-1.5 text-xs font-medium text-accent-bright transition-colors duration-150 hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .icon-btn {
+    @apply inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-faint transition-colors duration-150 hover:bg-raise hover:text-ink disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .input {
+    @apply w-full rounded-lg border border-line bg-canvas/60 px-3 py-2 text-sm text-ink outline-none transition-colors duration-150 placeholder:text-faint focus:border-accent/50 focus:ring-2 focus:ring-accent/15;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium text-soft;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-line bg-panel-2 px-2.5 py-0.5 text-[11px] text-soft;
+  }
+  .kbd {
+    @apply rounded border border-line-strong bg-panel-2 px-1.5 py-0.5 font-mono text-[10px] text-faint;
+  }
+}
