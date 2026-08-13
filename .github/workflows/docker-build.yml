@@ -10,8 +10,6 @@ on:
 
 env:
   GHCR_REGISTRY: ghcr.io
-  DOCKER_USERNAME: nikoyomi
-  IMAGE_NAME: mook
 
 permissions:
   contents: write # 允许创建 Release
@@ -21,8 +19,6 @@ jobs:
   build:
     name: Build and push image
     runs-on: ubuntu-latest
-    env:
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,7 +30,6 @@ jobs:
         with:
           images: |
             ${{ env.GHCR_REGISTRY }}/${{ github.repository }}
-            ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -54,14 +49,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 可选：仅在配置了 DOCKER_PASSWORD 密钥时推送 Docker Hub
-      - name: Log in to Docker Hub
-        if: ${{ env.DOCKER_PASSWORD != '' }}
-        uses: docker/login-action@v3
-        with:
-          username: ${{ env.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
+      # 仅推送 GHCR（未配置 Docker Hub 凭据时，避免 buildx 尝试推送 Docker Hub 而失败）
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
