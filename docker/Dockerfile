@@ -9,8 +9,8 @@ ARG GOPROXY=https://goproxy.cn,direct
 FROM ${BASE_IMAGE}/node:26.7-alpine AS frontend
 ARG NPM_REGISTRY
 WORKDIR /app/frontend
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install --registry=${NPM_REGISTRY}
+COPY frontend/package.json ./
+RUN npm install --registry=${NPM_REGISTRY} --no-package-lock
 COPY frontend/ ./
 RUN npm run build
 
