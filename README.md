@@ -1,29 +1,31 @@
 # 🗄️ Mook
 
+<p align="center">
+  <img src="frontend/public/icon.png" alt="Mook" width="120" />
+</p>
+
 [![Version](https://img.shields.io/badge/version-v0.2.1-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 
-> **AI 驱动的自托管 SSH 终端与服务器管理工具。** 一个 Docker 容器、一个入口，管理你所有服务器。
+> **支持AI的自托管 SSH 终端与服务器管理工具。** 
 
 ---
 
 ## 📖 项目简介
 
-Mook 是一个**自托管、单容器**的服务器运维工作台：把 Web SSH 终端、服务器监控、SFTP 文件管理和 AI 辅助融为一体，部署后只需一个网页入口即可集中管理所有 VPS。
+Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、服务器监控、SFTP 文件管理和 AI 辅助融为一体，部署后只需一个网页入口即可集中管理所有 VPS。
 
-- **一次部署，随处管理**：Docker 单容器启动，端口 `5866`，数据持久化于 `/data`（SQLite）
+- **一次部署，随处管理**：Docker 单容器启动，数据持久化（SQLite）
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
-- **AI 写在骨子里**：对接 OpenAI 兼容接口，自动获取模型，回答按「原因 / 解法 / 执行 / 命令」四段模板输出
+- **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.2.1** —— 主题系统、中英双语、终端体验与监控采集全面打磨（见 [更新日志](#-更新日志)）。
+**当前版本：v0.2.1** 
 
 ---
 
 ## 📸 项目截图
-
-截图保存在 `docs/` 目录。
 
 <p align="center">
   <img src="docs/截图.png" alt="Mook 界面截图" width="88%" />
@@ -33,15 +35,15 @@ Mook 是一个**自托管、单容器**的服务器运维工作台：把 Web SSH
 
 ## ✨ 核心功能
 
-- 🔐 **单密码登录**：首次运行引导设置，bcrypt 哈希存储；5 次失败锁定 15 分钟
+- 🔐 **单密码登录**：设置密码保护隐私。
 - 🖥️ **Web SSH 终端**：xterm.js，多标签并行会话、断线检测与自动重连、回显行自动标绿、`Ctrl+Shift+C` 复制、背景纹理轮动与自定义上传
-- 📊 **服务器监控面板**：实时延迟 / CPU / 内存 / 硬盘 使用率（3 秒轮询，兼容无 `awk` 的精简系统）
+- 📊 **服务器监控面板**：实时延迟 / CPU / 内存 / 硬盘 使用率
 - 📁 **SFTP 文件管理**：浏览 / 上传 / 下载 / 新建目录 / 重命名 / 删除
-- 🏷️ **服务器管理**：增删改、密码 / 私钥认证、一键复制 IP、上次连接时间
-- 🤖 **AI 助手**：OpenAI 兼容接口（DeepSeek / OpenAI / Gemini / Kimi / 智谱 / Ollama / 自定义厂商），自动获取模型，严格按四段模板回答
+- 🏷️ **服务器管理**：支持增删改、密码 / 私钥认证、一键复制 IP、上次连接时间
+- 🤖 **AI 助手**：OpenAI 兼容接口（DeepSeek / OpenAI / Gemini / Kimi / 智谱 / Ollama / 自定义厂商），自动获取模型
 - 💾 **备份与还原**：一键导出 / 导入全部服务器、AI 设置与常用命令
 - 🎨 **主题与多语言**：亮色 / 暗色 / 跟随系统三态主题，中 / 英界面切换
-- 🐳 **单容器 Docker 部署**：端口 **5866**，数据持久化到 `/data`，支持 amd64 / arm64
+- 🐳 **单容器 Docker 部署**：端口 **5866**，数据持久化
 
 ---
 
@@ -74,7 +76,7 @@ Docker 20.10+，支持 Linux / macOS / Windows（WSL2）。
 ```yaml
 services:
   mook:
-    image: ghcr.io/nikoyomi/mook:0.2.1   # 固定版本；升级时改为新版本号或 latest
+    image: ghcr.io/nikoyomi/mook:latest   # 固定版本；升级时改为新版本号或 latest
     container_name: mook
     ports:
       - "5866:5866"        # 「宿主机端口 : 容器端口」
