@@ -9,6 +9,7 @@ import { formatDateTime } from '../utils/command'
 import {
   AlertIcon,
   GithubIcon,
+  GripVerticalIcon,
   HistoryIcon,
   KeyIcon,
   LockIcon,
@@ -22,12 +23,14 @@ import {
 
 export default function Servers() {
   const t = useI18n()
-  const { servers, loading, load, create, update, remove } = useServers()
+  const { servers, loading, load, create, update, remove, reorder } = useServers()
   const [query, setQuery] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Server | undefined>()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [dragId, setDragId] = useState<number | null>(null)
+  const [overId, setOverId] = useState<number | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -69,6 +72,35 @@ export default function Servers() {
       setError(err instanceof Error ? err.message : '删除失败')
     }
   }
+
+  // 拖拽排序：把 dragId 对应服务器移动到 overId 所在位置
+  async function handleDrop(target: Server) {
+    if (dragId == null || dragId === target.id) {
+      setDragId(null)
+      setOverId(null)
+      return
+    }
+    const ids = servers.map((s) => s.id)
+    const from = ids.indexOf(dragId)
+    const to = ids.indexOf(target.id)
+    if (from < 0 || to < 0) {
+      setDragId(null)
+      setOverId(null)
+      return
+    }
+    const next = [...ids]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setDragId(null)
+    setOverId(null)
+    try {
+      await reorder(next)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存排序失败')
+    }
+  }
+
+  const searching = query.trim().length > 0
 
   return (
     <div className="flex h-full flex-col">
@@ -139,7 +171,7 @@ export default function Servers() {
                     setFormOpen(true)
                   }}
                 >
-                  <PlusIcon size={15} /> {t('addServer')}
+                  <PlusIcon size={14} /> {t('addServer')}
                 </button>
               )}
             </div>
@@ -149,7 +181,30 @@ export default function Servers() {
             {filtered.map((s) => (
               <div
                 key={s.id}
-                className="group flex flex-col rounded-2xl border border-line bg-panel p-4 transition-colors duration-150 hover:border-line-strong"
+                draggable={!searching}
+                onDragStart={(e) => {
+                  setDragId(s.id)
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragOver={(e) => {
+                  if (dragId == null || dragId === s.id) return
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  setOverId(s.id)
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  void handleDrop(s)
+                }}
+                onDragEnd={() => {
+                  setDragId(null)
+                  setOverId(null)
+                }}
+                className={`group flex flex-col rounded-2xl border bg-panel p-4 transition-colors duration-150 ${
+                  overId === s.id && dragId != null && dragId !== s.id
+                    ? 'border-accent/60 ring-2 ring-accent/30'
+                    : 'border-line hover:border-line-strong'
+                } ${dragId === s.id ? 'opacity-50' : ''} ${searching ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
               >
                 <div className="mb-3 flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2.5">
@@ -163,16 +218,27 @@ export default function Servers() {
                       </div>
                     </div>
                   </div>
-                  <span
-                    className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
-                      s.auth_type === 'key'
-                        ? 'border-info/25 bg-info/10 text-info'
-                        : 'border-warn/25 bg-warn/10 text-warn'
-                    }`}
-                  >
-                    {s.auth_type === 'key' ? <KeyIcon size={11} /> : <LockIcon size={11} />}
-                    {s.auth_type === 'key' ? '私钥' : '密码'}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span
+                      className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
+                        s.auth_type === 'key'
+                          ? 'border-info/25 bg-info/10 text-info'
+                          : 'border-warn/25 bg-warn/10 text-warn'
+                      }`}
+                    >
+                      {s.auth_type === 'key' ? <KeyIcon size={11} /> : <LockIcon size={11} />}
+                      {s.auth_type === 'key' ? '私钥' : '密码'}
+                    </span>
+                    {!searching && (
+                      <span
+                        className="flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded-md text-faint transition-colors duration-150 hover:bg-panel-2 hover:text-ink active:cursor-grabbing"
+                        title="按住拖动排序"
+                        aria-label={`拖动排序 ${s.name}`}
+                      >
+                        <GripVerticalIcon size={14} />
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mb-3 flex shrink-0 items-center gap-1.5 text-[11px] text-faint">
@@ -201,7 +267,8 @@ export default function Servers() {
                     onClick={() => navigate(`/terminal/${s.id}`)}
                   >
                     <TerminalIcon size={14} /> {t('connect')}
-                  </button>                  <button
+                  </button>
+                  <button
                     className="btn-ghost px-2.5"
                     onClick={() => {
                       setEditing(s)
@@ -248,7 +315,7 @@ export default function Servers() {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.2.1</span>
+        <span>v0.2.2</span>
       </footer>
 
       <Modal

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -62,6 +63,7 @@ func aiCommand(db *sql.DB, secret string) http.HandlerFunc {
 			writeErr(w, http.StatusBadGateway, "AI 调用失败："+err.Error())
 			return
 		}
+		log.Println("[ai] 生成命令完成")
 		writeJSON(w, http.StatusOK, map[string]any{"result": reply})
 	}
 }
@@ -87,6 +89,7 @@ func listAIModels(db *sql.DB, secret string) http.HandlerFunc {
 			writeErr(w, http.StatusBadGateway, "获取模型列表失败："+err.Error())
 			return
 		}
+		log.Println("[ai] 获取模型列表完成")
 		writeJSON(w, http.StatusOK, map[string]any{"models": models})
 	}
 }
@@ -118,6 +121,7 @@ func aiAnalyze(db *sql.DB, secret string) http.HandlerFunc {
 			writeErr(w, http.StatusBadGateway, "AI 调用失败："+err.Error())
 			return
 		}
+		log.Println("[ai] 日志分析完成")
 		writeJSON(w, http.StatusOK, map[string]any{"result": reply})
 	}
 }

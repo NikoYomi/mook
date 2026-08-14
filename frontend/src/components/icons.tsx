@@ -255,3 +255,14 @@ export const GithubIcon = (p: IconProps) => (
     <path d="M9 18c-4.51 2-5-2-7-2" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
   </I>
 )
+export const GripVerticalIcon = (p: IconProps) => (
+  <I {...p}>
+    <circle cx="9" cy="6" r="1" fill="currentColor" />
+    <circle cx="9" cy="12" r="1" fill="currentColor" />
+    <circle cx="9" cy="18" r="1" fill="currentColor" />
+    <circle cx="15" cy="6" r="1" fill="currentColor" />
+    <circle cx="15" cy="12" r="1" fill="currentColor" />
+    <circle cx="15" cy="18" r="1" fill="currentColor" />
+  </I>
+)
+

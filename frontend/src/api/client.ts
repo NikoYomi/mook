@@ -9,6 +9,7 @@ export interface Server {
   created_at: string
   updated_at: string
   last_connected_at: string
+  sort_order: number
 }
 
 export interface ServerInput {
@@ -81,6 +82,8 @@ export interface CommonCommandItem {
   name: string
   command: string
   category?: string
+  usage_count?: number
+  pinned?: boolean
 }
 
 export interface ServerStats {
@@ -136,6 +139,8 @@ export const api = {
   me: () => request<{ username: string }>('/api/me'),
 
   listServers: () => request<Server[]>('/api/servers'),
+  reorderServers: (ids: number[]) =>
+    request<{ ok: boolean }>('/api/servers/reorder', { method: 'PUT', body: JSON.stringify({ ids }) }),
   createServer: (s: ServerInput) => request<Server>('/api/servers', { method: 'POST', body: JSON.stringify(s) }),
   updateServer: (id: number, s: ServerInput) => request<Server>(`/api/servers/${id}`, { method: 'PUT', body: JSON.stringify(s) }),
   deleteServer: (id: number) => request<{ ok: boolean }>(`/api/servers/${id}`, { method: 'DELETE' }),
@@ -174,6 +179,8 @@ export const api = {
   listCommands: () => request<CommonCommandItem[]>('/api/commands'),
   saveCommands: (commands: CommonCommandItem[]) =>
     request<{ ok: boolean }>('/api/commands', { method: 'PUT', body: JSON.stringify(commands) }),
+  useCommand: (id: string) =>
+    request<{ ok: boolean }>(`/api/commands/${encodeURIComponent(id)}/use`, { method: 'POST' }),
 
   // ---- 账户 ----
   changeUsername: (username: string) =>

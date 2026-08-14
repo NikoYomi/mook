@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -50,6 +51,24 @@ func saveCommonCommands(db *sql.DB) http.HandlerFunc {
 			writeErr(w, http.StatusInternalServerError, "保存常用命令失败")
 			return
 		}
+		log.Printf("[commands] 保存常用命令（%d 条）", len(valid))
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
+}
+
+// POST /api/commands/{id}/use —— 命令使用次数 +1（用于自动排序）
+func useCommonCommand(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimSpace(r.PathValue("id"))
+		if id == "" {
+			writeErr(w, http.StatusBadRequest, "缺少命令 ID")
+			return
+		}
+		if err := database.IncrementCommonCommandUsage(db, id); err != nil {
+			writeErr(w, http.StatusInternalServerError, "记录使用次数失败")
+			return
+		}
+		log.Printf("[commands] 命令使用次数 +1（id=%s）", id)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
 }

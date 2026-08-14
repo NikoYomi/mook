@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -59,6 +60,7 @@ func createServer(db *sql.DB, secret string) http.HandlerFunc {
 			writeErr(w, http.StatusInternalServerError, "保存服务器失败")
 			return
 		}
+		log.Printf("[server] 添加服务器 #%d %q", created.ID, created.Name)
 		writeJSON(w, http.StatusOK, toAPIServer(created))
 	}
 }
@@ -91,6 +93,7 @@ func updateServer(db *sql.DB, secret string) http.HandlerFunc {
 			return
 		}
 		updated, _ := database.GetServer(db, id)
+		log.Printf("[server] 更新服务器 #%d %q", updated.ID, updated.Name)
 		writeJSON(w, http.StatusOK, toAPIServer(updated))
 	}
 }
@@ -111,6 +114,30 @@ func deleteServer(db *sql.DB) http.HandlerFunc {
 			writeErr(w, http.StatusInternalServerError, "删除服务器失败")
 			return
 		}
+		log.Printf("[server] 删除服务器 #%d", id)
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
+}
+
+// PUT /api/servers/reorder —— 更新服务器自定义排序（body: {"ids":[3,1,2]}）
+func reorderServers(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			IDs []int64 `json:"ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			writeErr(w, http.StatusBadRequest, "请求格式错误")
+			return
+		}
+		if len(in.IDs) == 0 {
+			writeErr(w, http.StatusBadRequest, "排序列表不能为空")
+			return
+		}
+		if err := database.ReorderServers(db, in.IDs); err != nil {
+			writeErr(w, http.StatusInternalServerError, "保存排序失败")
+			return
+		}
+		log.Printf("[server] 更新服务器排序（%d 台）", len(in.IDs))
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
 }
@@ -188,5 +215,6 @@ func toAPIServer(s *database.Server) *database.ServerAPI {
 		CreatedAt:       s.CreatedAt,
 		UpdatedAt:       s.UpdatedAt,
 		LastConnectedAt: last,
+		SortOrder:       s.SortOrder,
 	}
 }

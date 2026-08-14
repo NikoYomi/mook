@@ -3,6 +3,7 @@ package websocket
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -60,7 +61,10 @@ func HandleTerminal(db *sql.DB, secret string) http.HandlerFunc {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() {
+			conn.Close()
+			log.Printf("[ws] 终端已断开：server #%d", serverID)
+		}()
 
 		client, err := sshx.Dial(sshx.Config{
 			Host:       row.Host,
@@ -70,11 +74,13 @@ func HandleTerminal(db *sql.DB, secret string) http.HandlerFunc {
 			PrivateKey: privateKey,
 		})
 		if err != nil {
+			log.Printf("[ws] 终端 SSH 连接失败：server #%d（%v）", serverID, err)
 			_ = conn.WriteJSON(map[string]any{"type": "error", "message": "SSH 连接失败：" + err.Error()})
 			return
 		}
 		defer client.Close()
 		_ = database.UpdateLastConnected(db, serverID)
+		log.Printf("[ws] 终端已连接：server #%d", serverID)
 
 		session, err := client.NewSession()
 		if err != nil {

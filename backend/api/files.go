@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -105,6 +106,7 @@ func handleListFiles(db *sql.DB, secret string) http.HandlerFunc {
 				Mode:    e.Mode().String(),
 			})
 		}
+		log.Printf("[files] 列目录：server #%d", serverID)
 		writeJSON(w, http.StatusOK, map[string]any{"path": dir, "entries": out})
 	}
 }
@@ -141,6 +143,7 @@ func handleDownloadFile(db *sql.DB, secret string) http.HandlerFunc {
 		name := path.Base(filePath)
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(name))
+		log.Printf("[files] 下载文件：server #%d", serverID)
 		_, _ = io.Copy(w, f)
 	}
 }
@@ -187,6 +190,7 @@ func handleUploadFile(db *sql.DB, secret string) http.HandlerFunc {
 			writeErr(w, http.StatusBadGateway, "写入文件失败："+err.Error())
 			return
 		}
+		log.Printf("[files] 上传文件：server #%d", serverID)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": target})
 	}
 }
@@ -222,6 +226,7 @@ func handleMkdir(db *sql.DB, secret string) http.HandlerFunc {
 			writeErr(w, http.StatusBadGateway, "创建目录失败："+err.Error())
 			return
 		}
+		log.Printf("[files] 新建目录：server #%d", serverID)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": dirPath})
 	}
 }
@@ -259,6 +264,7 @@ func handleRename(db *sql.DB, secret string) http.HandlerFunc {
 			writeErr(w, http.StatusBadGateway, "重命名失败："+err.Error())
 			return
 		}
+		log.Printf("[files] 重命名：server #%d", serverID)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": newP})
 	}
 }
@@ -294,6 +300,7 @@ func handleRemove(db *sql.DB, secret string) http.HandlerFunc {
 			writeErr(w, http.StatusBadGateway, "删除失败："+err.Error())
 			return
 		}
+		log.Printf("[files] 删除：server #%d", serverID)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
 }

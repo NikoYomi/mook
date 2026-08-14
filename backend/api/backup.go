@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -29,6 +30,7 @@ func exportBackup(db *sql.DB) http.HandlerFunc {
 			writeErr(w, http.StatusInternalServerError, "读取常用命令失败")
 			return
 		}
+		log.Printf("[backup] 导出备份（%d 台服务器、%d 条常用命令）", len(servers), len(cmds))
 		writeJSON(w, http.StatusOK, map[string]any{
 			"version":         1,
 			"exported_at":     time.Now().Format(time.RFC3339),
@@ -77,6 +79,7 @@ func restoreBackup(db *sql.DB, secret string) http.HandlerFunc {
 				_ = database.SetSetting(db, key, val)
 			}
 		}
+		log.Printf("[backup] 还原备份（%d 台服务器）", restored)
 		if in.CommonCommands != nil {
 			if err := database.ReplaceCommonCommands(db, in.CommonCommands); err != nil {
 				writeErr(w, http.StatusInternalServerError, "还原常用命令失败")

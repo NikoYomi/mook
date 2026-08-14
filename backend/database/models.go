@@ -25,6 +25,7 @@ type Server struct {
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	LastConnectedAt time.Time `json:"last_connected_at"` // 上次成功连接时间（零值表示从未连接）
+	SortOrder       int       `json:"sort_order"`        // 自定义排序序号（越小越靠前）
 }
 
 // ServerAPI 返回给前端的服务器信息（不含任何凭据）
@@ -39,4 +40,5 @@ type ServerAPI struct {
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	LastConnectedAt string    `json:"last_connected_at"` // ISO 时间；零值表示从未连接
+	SortOrder       int       `json:"sort_order"`        // 自定义排序序号（越小越靠前）
 }

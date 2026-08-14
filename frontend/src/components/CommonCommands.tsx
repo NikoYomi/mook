@@ -11,6 +11,7 @@ import {
   PlusIcon,
   SearchIcon,
   SparklesIcon,
+  StarIcon,
   TrashIcon,
 } from './icons'
 
@@ -19,7 +20,7 @@ interface Props {
 }
 
 export default function CommonCommands({ onRun }: Props) {
-  const { commands, add, update, remove } = useCommands()
+  const { commands, add, update, remove, use, togglePin } = useCommands()
   const [query, setQuery] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<CommandItem | null>(null)
@@ -34,6 +35,11 @@ export default function CommonCommands({ onRun }: Props) {
         (c.category ?? '').toLowerCase().includes(q),
     )
   }, [commands, query])
+
+  function handleRun(c: CommandItem) {
+    onRun(c.command)
+    void use(c.id) // 记录使用次数（自动排序依据），失败不影响运行
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -89,21 +95,40 @@ export default function CommonCommands({ onRun }: Props) {
           filtered.map((c) => (
             <div
               key={c.id}
-              className="group rounded-xl border border-line bg-panel-2 p-2.5 transition-colors duration-150 hover:border-line-strong"
+              className={`group rounded-xl border bg-panel-2 p-2.5 transition-colors duration-150 hover:border-line-strong ${
+                c.pinned ? 'border-accent/30' : 'border-line'
+              }`}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <CommandIcon size={14} className="shrink-0 text-accent" />
+                  {c.pinned ? (
+                    <StarIcon size={14} className="shrink-0 fill-accent text-accent" />
+                  ) : (
+                    <CommandIcon size={14} className="shrink-0 text-accent" />
+                  )}
                   <span className="truncate text-[13px] font-medium text-ink">{c.name}</span>
+                  {typeof c.usageCount === 'number' && c.usageCount > 0 && (
+                    <span className="shrink-0 rounded-full border border-line bg-canvas/60 px-1.5 py-0.5 text-[10px] leading-none text-faint">
+                      使用 {c.usageCount} 次
+                    </span>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:transition-opacity sm:duration-150 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                   <button
-                    onClick={() => onRun(c.command)}
+                    onClick={() => handleRun(c)}
                     className="icon-btn h-6 w-6 hover:text-accent"
                     title="在终端中运行"
                     aria-label={`运行 ${c.name}`}
                   >
                     <PlayIcon size={13} />
+                  </button>
+                  <button
+                    onClick={() => togglePin(c.id)}
+                    className={`icon-btn h-6 w-6 ${c.pinned ? 'text-accent' : 'hover:text-accent'}`}
+                    title={c.pinned ? '取消置顶' : '置顶到最前'}
+                    aria-label={c.pinned ? `取消置顶 ${c.name}` : `置顶 ${c.name}`}
+                  >
+                    <StarIcon size={13} />
                   </button>
                   <button
                     onClick={() => {
@@ -186,7 +211,8 @@ function CommandFormModal({
     }
   }, [open, editing])
 
-  /** 用「名称」框里输入的自然语言，让 AI 生成命令并填入命令框 */
+  /** 用「名称」框里输入的自然语言，让 AI 生成命令并填入命令框。
+   *  注意：只在鼠标点击 ✨ 按钮时触发；名称输入框内按回车不会触发 AI。 */
   async function generateByAI() {
     setAiError('')
     const prompt = name.trim()
@@ -237,17 +263,12 @@ function CommandFormModal({
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  generateByAI()
-                }
-              }}
               className="input pr-11"
               placeholder="例如：查看磁盘占用，或描述你想做什么"
               autoFocus
             />
             <button
+              type="button"
               onClick={generateByAI}
               disabled={aiBusy || !name.trim()}
               className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-accent transition-colors duration-150 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-40"
@@ -262,7 +283,7 @@ function CommandFormModal({
             </button>
           </div>
           <span className="mt-1 block text-[11px] text-faint">
-            输入名称后点击右侧 ✨ 图标，AI 会把命令自动填入下方命令框
+            输入名称后点击右侧 ✨ 图标，AI 会把命令自动填入下方命令框（回车不会触发 AI）
           </span>
         </label>
 

@@ -28,9 +28,11 @@ func NewRouter(cfg *config.Config, db *sql.DB, secret string) http.Handler {
 	mux.Handle("POST /api/servers", authed(http.HandlerFunc(createServer(db, secret))))
 	mux.Handle("PUT /api/servers/{id}", authed(http.HandlerFunc(updateServer(db, secret))))
 	mux.Handle("DELETE /api/servers/{id}", authed(http.HandlerFunc(deleteServer(db))))
+	mux.Handle("PUT /api/servers/reorder", authed(http.HandlerFunc(reorderServers(db))))
 	mux.Handle("GET /api/servers/{id}/stats", authed(http.HandlerFunc(serverStatsHandler(db, secret))))
 	mux.Handle("GET /api/commands", authed(http.HandlerFunc(getCommonCommands(db))))
 	mux.Handle("PUT /api/commands", authed(http.HandlerFunc(saveCommonCommands(db))))
+	mux.Handle("POST /api/commands/{id}/use", authed(http.HandlerFunc(useCommonCommand(db))))
 	mux.Handle("GET /api/servers/{id}/files", authed(http.HandlerFunc(handleListFiles(db, secret))))
 	mux.Handle("GET /api/servers/{id}/files/download", authed(http.HandlerFunc(handleDownloadFile(db, secret))))
 	mux.Handle("POST /api/servers/{id}/files/upload", authed(http.HandlerFunc(handleUploadFile(db, secret))))
@@ -52,7 +54,8 @@ func NewRouter(cfg *config.Config, db *sql.DB, secret string) http.Handler {
 	// ---- 前端静态资源（SPA 回退）----
 	mux.Handle("/", serveFrontend(cfg))
 
-	return mux
+	// 访问日志（API 请求：方法/路径/状态/耗时；不含查询串与请求体）
+	return logRequests(mux)
 }
 
 func serveFrontend(cfg *config.Config) http.Handler {

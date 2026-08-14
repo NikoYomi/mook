@@ -8,6 +8,7 @@ interface ServersState {
   create: (s: ServerInput) => Promise<void>
   update: (id: number, s: ServerInput) => Promise<void>
   remove: (id: number) => Promise<void>
+  reorder: (ids: number[]) => Promise<void>
 }
 
 export const useServers = create<ServersState>((set, get) => ({
@@ -32,6 +33,10 @@ export const useServers = create<ServersState>((set, get) => ({
   },
   async remove(id) {
     await api.deleteServer(id)
+    await get().load()
+  },
+  async reorder(ids) {
+    await api.reorderServers(ids)
     await get().load()
   },
 }))

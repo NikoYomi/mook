@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -75,6 +76,7 @@ func handleSetup(db *sql.DB, cfg *config.Config) http.HandlerFunc {
 			writeErr(w, http.StatusInternalServerError, "创建用户失败")
 			return
 		}
+		log.Println("[auth] 完成首次初始化（设置管理员密码）")
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
 }
@@ -106,10 +108,12 @@ func handleLogin(db *sql.DB) http.HandlerFunc {
 		}
 		if err != nil || u == nil || !auth.CheckPassword(u.PasswordHash, req.Password) {
 			noteLoginFail(ip)
+			log.Println("[auth] 登录失败：用户名或密码错误")
 			writeErr(w, http.StatusUnauthorized, "用户名或密码错误")
 			return
 		}
 		noteLoginOK(ip)
+		log.Println("[auth] 登录成功")
 		if err := auth.CreateSession(db, w, u.ID); err != nil {
 			writeErr(w, http.StatusInternalServerError, "创建会话失败")
 			return

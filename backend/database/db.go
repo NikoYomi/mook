@@ -61,6 +61,8 @@ func migrate(db *sql.DB) error {
 			command TEXT NOT NULL,
 			category TEXT NOT NULL DEFAULT '',
 			sort_order INTEGER NOT NULL DEFAULT 0,
+			usage_count INTEGER NOT NULL DEFAULT 0,
+			pinned INTEGER NOT NULL DEFAULT 0,
 			created_at TEXT NOT NULL DEFAULT ''
 		)`,
 	}
@@ -71,6 +73,15 @@ func migrate(db *sql.DB) error {
 	}
 	// 增量迁移：为已有数据库补充新增列
 	if err := ensureColumn(db, "servers", "last_connected_at", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("迁移表结构失败: %w", err)
+	}
+	if err := ensureColumn(db, "servers", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return fmt.Errorf("迁移表结构失败: %w", err)
+	}
+	if err := ensureColumn(db, "common_commands", "usage_count", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return fmt.Errorf("迁移表结构失败: %w", err)
+	}
+	if err := ensureColumn(db, "common_commands", "pinned", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return fmt.Errorf("迁移表结构失败: %w", err)
 	}
 	return nil

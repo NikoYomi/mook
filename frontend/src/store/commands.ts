@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { api } from '../api/client'
+import { api, CommonCommandItem } from '../api/client'
 
 export interface CommandItem {
   id: string
@@ -8,6 +8,8 @@ export interface CommandItem {
   command: string
   category?: string
   createdAt: number
+  usageCount?: number
+  pinned?: boolean
 }
 
 interface CommandsState {
@@ -18,6 +20,8 @@ interface CommandsState {
   update: (id: string, c: { name: string; command: string; category?: string }) => void
   remove: (id: string) => void
   replace: (commands: CommandItem[]) => void
+  use: (id: string) => Promise<void>
+  togglePin: (id: string) => void
 }
 
 function uid(): string {
@@ -25,14 +29,43 @@ function uid(): string {
   return `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-// 服务端条目 → 本地条目（服务端不保存 createdAt，此处置 0）
-function fromServer(c: { id: string; name: string; command: string; category?: string }): CommandItem {
-  return { id: c.id, name: c.name, command: c.command, category: c.category, createdAt: 0 }
+// 排序：置顶优先 → 使用次数降序 → 保持原相对顺序
+export function sortCommands(list: CommandItem[]): CommandItem[] {
+  return [...list].sort((a, b) => {
+    const pa = a.pinned ? 1 : 0
+    const pb = b.pinned ? 1 : 0
+    if (pa !== pb) return pb - pa
+    const ua = a.usageCount ?? 0
+    const ub = b.usageCount ?? 0
+    if (ua !== ub) return ub - ua
+    return 0
+  })
+}
+
+// 服务端条目 → 本地条目
+function fromServer(c: CommonCommandItem): CommandItem {
+  return {
+    id: c.id,
+    name: c.name,
+    command: c.command,
+    category: c.category,
+    createdAt: 0,
+    usageCount: c.usage_count ?? 0,
+    pinned: !!c.pinned,
+  }
 }
 
 // 变更后推送到服务端（持久化到 /data，容器重建不丢失）
 function sync(commands: CommandItem[]) {
-  api.saveCommands(commands).catch((err) => {
+  const payload: CommonCommandItem[] = commands.map((c) => ({
+    id: c.id,
+    name: c.name,
+    command: c.command,
+    category: c.category,
+    usage_count: c.usageCount ?? 0,
+    pinned: !!c.pinned,
+  }))
+  api.saveCommands(payload).catch((err) => {
     console.warn('同步常用命令到服务端失败：', err)
   })
 }
@@ -62,44 +95,73 @@ export const useCommands = create<CommandsState>()(
         try {
           const list = await api.listCommands()
           if (list && list.length > 0) {
-            set({ commands: list.map(fromServer), synced: true })
+            set({ commands: sortCommands(list.map(fromServer)), synced: true })
             return
           }
           // 服务端尚无记录：把当前（默认或本地自定义）命令首次写入 /data
-          const current = get().commands
-          await api.saveCommands(current)
-          set({ synced: true })
+          const current = sortCommands(get().commands)
+          await api.saveCommands(
+            current.map((c) => ({
+              id: c.id,
+              name: c.name,
+              command: c.command,
+              category: c.category,
+              usage_count: c.usageCount ?? 0,
+              pinned: !!c.pinned,
+            })),
+          )
+          set({ commands: current, synced: true })
         } catch {
           set({ synced: false })
         }
       },
       add: (c) => {
-        const next = [{ ...c, id: uid(), createdAt: Date.now() }, ...get().commands]
+        const next = sortCommands([{ ...c, id: uid(), createdAt: Date.now() }, ...get().commands])
         set({ commands: next })
         if (get().synced) sync(next)
       },
       update: (id, c) => {
-        const next = get().commands.map((x) => (x.id === id ? { ...x, ...c } : x))
+        const next = sortCommands(get().commands.map((x) => (x.id === id ? { ...x, ...c } : x)))
         set({ commands: next })
         if (get().synced) sync(next)
       },
       remove: (id) => {
-        const next = get().commands.filter((x) => x.id !== id)
+        const next = sortCommands(get().commands.filter((x) => x.id !== id))
         set({ commands: next })
         if (get().synced) sync(next)
       },
       replace: (commands) => {
-        set({ commands })
-        if (get().synced) sync(commands)
+        const next = sortCommands(commands)
+        set({ commands: next })
+        if (get().synced) sync(next)
+      },
+      async use(id) {
+        // 乐观更新本地次数并重新排序；服务端异步 +1
+        const next = sortCommands(
+          get().commands.map((x) => (x.id === id ? { ...x, usageCount: (x.usageCount ?? 0) + 1 } : x)),
+        )
+        set({ commands: next })
+        try {
+          await api.useCommand(id)
+        } catch (err) {
+          console.warn('记录命令使用次数失败：', err)
+        }
+      },
+      togglePin(id) {
+        const next = sortCommands(
+          get().commands.map((x) => (x.id === id ? { ...x, pinned: !x.pinned } : x)),
+        )
+        set({ commands: next })
+        if (get().synced) sync(next)
       },
     }),
     {
       name: 'mook.commands',
-      version: 2,
+      version: 3,
       migrate(persisted, version) {
         const raw = persisted as { commands?: CommandItem[] } | undefined
         const list = raw?.commands
-        // 只有 v1 且命令恰好是旧版 6 条默认命令（seed-1..6）时才替换为新默认；用户自定义过则保留
+        // v1：旧版 6 条默认命令 → 新默认；v2 及以后保留（新字段使用默认值）
         if (version < 2 && Array.isArray(list)) {
           const ids = list.map((c) => c.id)
           const isOldDefaults =

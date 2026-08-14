@@ -14,8 +14,8 @@ type rowScanner interface {
 // ListServers 服务器列表
 func ListServers(db *sql.DB) ([]*Server, error) {
 	rows, err := db.Query(
-		`SELECT id, name, host, port, username, auth_type, password_enc, private_key_enc, tags, created_at, updated_at, last_connected_at
-		 FROM servers ORDER BY id`,
+		`SELECT id, name, host, port, username, auth_type, password_enc, private_key_enc, tags, created_at, updated_at, last_connected_at, sort_order
+		 FROM servers ORDER BY sort_order, id`,
 	)
 	if err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func ListServers(db *sql.DB) ([]*Server, error) {
 // GetServer 单个服务器（含加密凭据）
 func GetServer(db *sql.DB, id int64) (*Server, error) {
 	row := db.QueryRow(
-		`SELECT id, name, host, port, username, auth_type, password_enc, private_key_enc, tags, created_at, updated_at, last_connected_at
+		`SELECT id, name, host, port, username, auth_type, password_enc, private_key_enc, tags, created_at, updated_at, last_connected_at, sort_order
 		 FROM servers WHERE id = ?`,
 		id,
 	)
@@ -46,10 +46,10 @@ func GetServer(db *sql.DB, id int64) (*Server, error) {
 func CreateServer(db *sql.DB, s *Server) (*Server, error) {
 	now := nowStr()
 	res, err := db.Exec(
-		`INSERT INTO servers (name, host, port, username, auth_type, password_enc, private_key_enc, tags, created_at, updated_at, last_connected_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO servers (name, host, port, username, auth_type, password_enc, private_key_enc, tags, created_at, updated_at, last_connected_at, sort_order)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.Name, s.Host, s.Port, s.Username, s.AuthType, s.PasswordEnc, s.PrivateKeyEnc,
-		joinTags(s.Tags), now, now, timeStr(s.LastConnectedAt),
+		joinTags(s.Tags), now, now, timeStr(s.LastConnectedAt), s.SortOrder,
 	)
 	if err != nil {
 		return nil, err
@@ -91,6 +91,21 @@ func DeleteServer(db *sql.DB, id int64) error {
 	return nil
 }
 
+// ReorderServers 按给定 ID 顺序更新服务器排序（sort_order = 下标）
+func ReorderServers(db *sql.DB, ids []int64) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for i, id := range ids {
+		if _, err := tx.Exec(`UPDATE servers SET sort_order=? WHERE id=?`, i, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // ClearServers 清空全部服务器（用于还原备份）
 func ClearServers(db *sql.DB) error {
 	_, err := db.Exec(`DELETE FROM servers`)
@@ -119,7 +134,7 @@ func scanServer(row rowScanner) (*Server, error) {
 	var created, updated, lastConnected string
 	if err := row.Scan(
 		&s.ID, &s.Name, &s.Host, &s.Port, &s.Username, &s.AuthType,
-		&s.PasswordEnc, &s.PrivateKeyEnc, &s.TagsRaw, &created, &updated, &lastConnected,
+		&s.PasswordEnc, &s.PrivateKeyEnc, &s.TagsRaw, &created, &updated, &lastConnected, &s.SortOrder,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
