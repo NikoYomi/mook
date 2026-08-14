@@ -110,9 +110,11 @@ export default function Workspace() {
             className="mr-2 flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 transition-colors duration-150 hover:bg-raise"
             title="Mook 首页"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent/15 text-accent">
-              <TerminalIcon size={15} />
-            </span>
+            <img
+              src="/icon.png"
+              alt="Mook"
+              className="h-6 w-6 rounded-md object-cover"
+            />
             <span className="text-sm font-bold tracking-wide text-ink">Mook</span>
           </button>
           <nav className="flex items-center gap-0.5">
@@ -169,7 +171,7 @@ export default function Workspace() {
             {menuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 top-[calc(100%+6px)] z-50 w-full overflow-hidden rounded-xl border border-line bg-panel shadow-2xl shadow-black/50"
+                className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[11rem] whitespace-nowrap rounded-xl border border-line bg-panel shadow-2xl shadow-black/50"
               >
                 <div className="border-b border-line px-3 py-2.5">
                   <div className="truncate text-[13px] font-medium text-ink">{user}</div>

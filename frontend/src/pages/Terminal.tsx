@@ -433,7 +433,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.2.3</span>
+        <span>v0.2.4</span>
       </footer>
     </div>
   )

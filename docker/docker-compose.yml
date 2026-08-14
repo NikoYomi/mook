@@ -9,7 +9,7 @@ services:
         BASE_IMAGE: ${MOOK_REGISTRY:-docker.io/library}
         NPM_REGISTRY: ${MOOK_NPM_REGISTRY:-https://registry.npmjs.org}
         GOPROXY: ${MOOK_GOPROXY:-https://proxy.golang.org,direct}
-    image: mook/mook:0.2.3
+    image: mook/mook:0.2.4
     container_name: mook
     ports:
       - "5866:5866"

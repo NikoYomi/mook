@@ -108,11 +108,6 @@ export default function CommonCommands({ onRun }: Props) {
                     <CommandIcon size={14} className="shrink-0 text-accent" />
                   )}
                   <span className="truncate text-[13px] font-medium text-ink">{c.name}</span>
-                  {typeof c.usageCount === 'number' && c.usageCount > 0 && (
-                    <span className="shrink-0 rounded-full border border-line bg-canvas/60 px-1.5 py-0.5 text-[10px] leading-none text-faint">
-                      使用 {c.usageCount} 次
-                    </span>
-                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:transition-opacity sm:duration-150 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                   <button
