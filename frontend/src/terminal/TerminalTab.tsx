@@ -314,6 +314,7 @@ export default function TerminalTab({
             <button
               onClick={() => setRetry((r) => r + 1)}
               className="btn-soft flex-none py-1 text-[11px]"
+              title="重新连接当前终端"
             >
               <RefreshIcon size={12} /> {t('retry')} 重新连接
             </button>
@@ -326,7 +327,8 @@ export default function TerminalTab({
           <span className="truncate">{error}</span>
         </div>
       )}
-      <div ref={elRef} className="min-h-0 flex-1 p-1" style={bgStyle(termBg, termBgImage)} />
+      {/* 左右留白，避免终端输出贴边 */}
+      <div ref={elRef} className="min-h-0 flex-1 px-3 py-1.5" style={bgStyle(termBg, termBgImage)} />
     </div>
   )
 }

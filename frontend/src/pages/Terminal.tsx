@@ -13,6 +13,7 @@ import {
   CheckCircleIcon,
   CommandIcon,
   FolderOpenIcon,
+  GithubIcon,
   PanelLeftIcon,
   PanelRightIcon,
   PlusIcon,
@@ -242,6 +243,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
             <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-line p-2">
               <button
                 onClick={() => setLeftTab('info')}
+                title={t('serverInfo')}
                 className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors duration-150 ${
                   leftTab === 'info'
                     ? 'bg-accent-dim text-accent-bright'
@@ -253,6 +255,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
               </button>
               <button
                 onClick={() => setLeftTab('files')}
+                title={t('fileManager')}
                 className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors duration-150 ${
                   leftTab === 'files'
                     ? 'bg-accent-dim text-accent-bright'
@@ -283,7 +286,11 @@ export default function Terminal({ serverId }: { serverId?: string }) {
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-ink">{t('noTerminalOpen')}</p>
                 </div>
-                <button className="btn-primary shrink-0" onClick={() => setPickerOpen(true)}>
+                <button
+                  className="btn-primary shrink-0"
+                  onClick={() => setPickerOpen(true)}
+                  title={t('selectServer')}
+                >
                   <ServerIcon size={15} /> {t('selectServer')}
                 </button>
               </div>
@@ -310,6 +317,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
             <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-line p-2">
               <button
                 onClick={() => setSideTab('commands')}
+                title={t('commonCommands')}
                 className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors duration-150 ${
                   sideTab === 'commands'
                     ? 'bg-accent-dim text-accent-bright'
@@ -321,6 +329,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
               </button>
               <button
                 onClick={() => setSideTab('ai')}
+                title={t('aiAssistant')}
                 className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors duration-150 ${
                   sideTab === 'ai'
                     ? 'bg-accent-dim text-accent-bright'
@@ -366,6 +375,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
                   openTab(s.id, s.name)
                   setPickerOpen(false)
                 }}
+                title={opened ? '该服务器已在终端打开' : `打开 ${s.name} 的终端`}
                 className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-line bg-panel-2 px-3.5 py-2.5 text-left text-[13px] transition-colors duration-150 hover:border-line-strong hover:bg-raise disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span className="flex min-w-0 items-center gap-2">
@@ -400,6 +410,31 @@ export default function Terminal({ serverId }: { serverId?: string }) {
           </div>
         </div>
       )}
+
+      {/* 页脚（与服务器页一致） */}
+      <footer className="flex shrink-0 items-center justify-center gap-1.5 border-t border-line px-5 py-2.5 text-[11px] text-faint">
+        <span>© 2026</span>
+        <a
+          href="https://github.com/NikoYomi"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="NikoYomi 主页"
+          className="transition-colors duration-150 hover:text-ink"
+        >
+          NikoYomi
+        </a>
+        <span>· Built with AI assistance ·</span>
+        <a
+          href="https://github.com/NikoYomi/mook"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Mook 开源项目地址"
+          className="flex items-center text-soft transition-colors duration-150 hover:text-ink"
+        >
+          <GithubIcon size={13} />
+        </a>
+        <span>v0.2.3</span>
+      </footer>
     </div>
   )
 }

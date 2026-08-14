@@ -131,6 +131,7 @@ export default function Servers() {
               setEditing(undefined)
               setFormOpen(true)
             }}
+            title={t('addServer')}
           >
             <PlusIcon size={15} /> {t('addServer')}
           </button>
@@ -170,6 +171,7 @@ export default function Servers() {
                     setEditing(undefined)
                     setFormOpen(true)
                   }}
+                  title={t('addServer')}
                 >
                   <PlusIcon size={14} /> {t('addServer')}
                 </button>
@@ -265,6 +267,7 @@ export default function Servers() {
                   <button
                     className="btn-primary flex-1"
                     onClick={() => navigate(`/terminal/${s.id}`)}
+                    title={`连接 ${s.name}`}
                   >
                     <TerminalIcon size={14} /> {t('connect')}
                   </button>
@@ -315,7 +318,7 @@ export default function Servers() {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.2.2</span>
+        <span>v0.2.3</span>
       </footer>
 
       <Modal

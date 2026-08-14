@@ -329,10 +329,10 @@ function MkdirModal({
           </div>
         )}
         <div className="flex justify-end gap-2">
-          <button className="btn-ghost" onClick={onClose}>
+          <button className="btn-ghost" onClick={onClose} title="取消，不创建">
             取消
           </button>
-          <button className="btn-primary" onClick={submit} disabled={busy}>
+          <button className="btn-primary" onClick={submit} disabled={busy} title="创建目录">
             {busy ? '创建中…' : '创建'}
           </button>
         </div>

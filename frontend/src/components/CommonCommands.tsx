@@ -86,6 +86,7 @@ export default function CommonCommands({ onRun }: Props) {
                   setEditing(null)
                   setFormOpen(true)
                 }}
+                title="添加常用命令"
               >
                 <PlusIcon size={13} /> 添加第一条命令
               </button>
@@ -318,10 +319,10 @@ function CommandFormModal({
           </div>
         )}
         <div className="flex justify-end gap-2 pt-1">
-          <button className="btn-ghost" onClick={onClose}>
+          <button className="btn-ghost" onClick={onClose} title="取消，不保存">
             取消
           </button>
-          <button className="btn-primary" onClick={submit}>
+          <button className="btn-primary" onClick={submit} title="保存常用命令">
             {editing ? '保存修改' : '添加'}
           </button>
         </div>

@@ -135,7 +135,12 @@ export default function Login() {
             </div>
           )}
 
-          <button type="submit" disabled={busy} className="btn-primary w-full py-2.5">
+          <button
+            type="submit"
+            disabled={busy}
+            className="btn-primary w-full py-2.5"
+            title={setupRequired ? '设置初始密码并进入系统' : '登录系统'}
+          >
             {busy ? (
               <>
                 <LoaderIcon size={14} className="animate-spin" /> {t('loginLoading')}

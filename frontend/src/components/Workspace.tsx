@@ -124,6 +124,7 @@ export default function Workspace() {
                   key={item.key}
                   onClick={() => navigate(item.to)}
                   aria-current={active ? 'page' : undefined}
+                  title={item.label}
                   className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors duration-150 ${
                     active
                       ? 'bg-raise text-ink'
@@ -181,6 +182,7 @@ export default function Workspace() {
                     setSettingsTab('general')
                     setSettingsOpen(true)
                   }}
+                  title={t('settings')}
                   className="flex w-full cursor-pointer items-center gap-2 border-b border-line px-3 py-2.5 text-left text-[13px] text-soft transition-colors duration-150 hover:bg-panel-2 hover:text-ink"
                 >
                   <SettingsIcon size={15} />
@@ -189,6 +191,7 @@ export default function Workspace() {
                 <button
                   role="menuitem"
                   onClick={handleLogout}
+                  title={t('logout')}
                   className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left text-[13px] text-soft transition-colors duration-150 hover:bg-danger-dim hover:text-danger"
                 >
                   <LogOutIcon size={15} />

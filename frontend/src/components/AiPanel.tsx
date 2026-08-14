@@ -77,7 +77,12 @@ export default function AiPanel({ onRun }: Props) {
           className="input flex-none resize-none font-mono text-xs leading-relaxed"
           placeholder="例如：我运行xx命令，现在输出（粘贴输出），这是什么问题，如何解决？"
         />
-        <button onClick={run} disabled={busy} className="btn-primary w-full flex-none">
+        <button
+          onClick={run}
+          disabled={busy}
+          className="btn-primary w-full flex-none"
+          title="让 AI 分析输入的内容并给出诊断与建议"
+        >
           {busy ? (
             <>
               <LoaderIcon size={14} className="animate-spin" />

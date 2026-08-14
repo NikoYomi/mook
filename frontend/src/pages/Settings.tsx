@@ -439,6 +439,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
               <button
                 key={item.key}
                 onClick={() => setTab(item.key)}
+                title={item.label}
                 className={`flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-[13px] transition-colors duration-150 ${
                   active
                     ? 'bg-accent-dim text-accent-bright'
@@ -545,6 +546,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                       type="button"
                       onClick={fetchModels}
                       disabled={modelsLoading}
+                      title="从当前 AI 服务获取可用模型列表"
                       className="cursor-pointer text-[11px] font-medium text-accent-bright hover:text-accent disabled:opacity-50"
                     >
                       {modelsLoading ? '获取中…' : '获取可用模型'}
@@ -613,7 +615,12 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
 
                 {(liveModels.length > 0 || (hasKey && !apiKey.trim())) && (
                   <div className="flex justify-end pt-1">
-                    <button type="submit" disabled={busy || modelsLoading} className="btn-primary">
+                    <button
+                      type="submit"
+                      disabled={busy || modelsLoading}
+                      className="btn-primary"
+                      title="保存 AI 设置并验证连接"
+                    >
                       {busy ? (
                         <>
                           <LoaderIcon size={14} className="animate-spin" /> 保存并验证中…
@@ -651,7 +658,12 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                         placeholder="admin"
                       />
                     </div>
-                    <button type="submit" disabled={accountBusy} className="btn-primary flex-none">
+                    <button
+                      type="submit"
+                      disabled={accountBusy}
+                      className="btn-primary flex-none"
+                      title="保存新的用户名"
+                    >
                       保存用户名
                     </button>
                   </div>
@@ -671,6 +683,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                     }
                   }}
                   className="btn-danger w-full flex-none"
+                  title={pwdFormOpen ? '收起修改密码表单' : '修改登录密码'}
                 >
                   {pwdFormOpen ? '收起' : '修改登录密码'}
                 </button>
@@ -688,7 +701,12 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                       disabled={pwdVerified}
                     />
                     {!pwdVerified && (
-                      <button type="submit" disabled={verifyBusy} className="btn-primary flex-none">
+                      <button
+                        type="submit"
+                        disabled={verifyBusy}
+                        className="btn-primary flex-none"
+                        title="验证当前密码是否正确"
+                      >
                         {verifyBusy ? (
                           <>
                             <LoaderIcon size={14} className="animate-spin" /> 验证中…
@@ -723,7 +741,12 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                       />
                     </label>
                     <div className="flex justify-end pt-1">
-                      <button type="submit" disabled={accountBusy} className="btn-ghost">
+                      <button
+                        type="submit"
+                        disabled={accountBusy}
+                        className="btn-ghost"
+                        title="确认修改密码"
+                      >
                         {accountBusy ? (
                           <>
                             <LoaderIcon size={14} className="animate-spin" /> 保存中…
@@ -773,6 +796,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                         key={opt.value}
                         type="button"
                         onClick={() => setTheme(opt.value)}
+                        title={`切换到${opt.label}主题`}
                         className={`flex cursor-pointer items-center justify-center rounded-lg border px-2 py-1.5 text-[13px] transition-colors duration-150 ${
                           theme === opt.value
                             ? 'border-accent/40 bg-accent-dim text-accent-bright'
@@ -791,6 +815,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                     <button
                       type="button"
                       onClick={() => setEnglish(false)}
+                      title="切换为简体中文界面"
                       className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[13px] transition-colors duration-150 ${
                         !english
                           ? 'border-accent/40 bg-accent-dim text-accent-bright'
@@ -802,6 +827,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                     <button
                       type="button"
                       onClick={() => setEnglish(true)}
+                      title="Switch to English"
                       className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[13px] transition-colors duration-150 ${
                         english
                           ? 'border-accent/40 bg-accent-dim text-accent-bright'
@@ -829,6 +855,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                         key={id}
                         type="button"
                         onClick={() => setTermBg(id)}
+                        title={`使用「${p.name}」作为终端背景`}
                         className={`cursor-pointer rounded-lg border p-1.5 transition-colors duration-150 ${
                           active
                             ? 'border-accent/50 ring-1 ring-accent/30'
@@ -851,6 +878,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   <button
                     type="button"
                     onClick={() => bgUploadRef.current?.click()}
+                    title="上传自定义终端背景图片"
                     className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors duration-150 ${
                       termBg === 'image'
                         ? 'border-accent/50 bg-accent-dim text-accent-bright'
@@ -864,6 +892,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                     <button
                       type="button"
                       onClick={resetTermBg}
+                      title="恢复默认终端背景"
                       className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-canvas/40 px-3 py-1.5 text-xs text-soft transition-colors duration-150 hover:border-danger/40 hover:text-danger"
                     >
                       恢复默认
@@ -895,14 +924,19 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
           {tab === 'data' && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
-                <button onClick={handleExport} disabled={backupBusy} className="btn-primary px-5 py-2.5 text-sm">
+                <button
+                  onClick={handleExport}
+                  disabled={backupBusy}
+                  className="btn-primary px-5 py-2.5 text-sm"
+                  title="导出数据备份文件（服务器、AI 设置与常用命令）"
+                >
                   {backupBusy ? (
                     <>
                       <LoaderIcon size={16} className="animate-spin" /> 处理中…
                     </>
                   ) : (
                     <>
-                      <DownloadIcon size={16} /> 导出数据
+                      <UploadIcon size={16} /> 导出数据
                     </>
                   )}
                 </button>
@@ -910,8 +944,9 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   onClick={() => importRef.current?.click()}
                   disabled={backupBusy}
                   className="btn-ghost px-5 py-2.5 text-sm"
+                  title="从备份文件导入数据"
                 >
-                  <UploadIcon size={16} /> 导入数据
+                  <DownloadIcon size={16} /> 导入数据
                 </button>
                 <input
                   ref={importRef}
@@ -971,7 +1006,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-soft transition-colors duration-150 hover:text-ink"
                 >
                   <GithubIcon size={15} />
-                  v0.2.2
+                  v0.2.3
                 </a>
               </div>
 

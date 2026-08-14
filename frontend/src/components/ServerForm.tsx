@@ -159,10 +159,10 @@ export default function ServerForm({
       </label>
 
       <div className="flex justify-end gap-2 pt-1">
-        <button type="button" className="btn-ghost" onClick={onCancel}>
+        <button type="button" className="btn-ghost" onClick={onCancel} title="取消，不保存">
           取消
         </button>
-        <button type="submit" disabled={submitting} className="btn-primary">
+        <button type="submit" disabled={submitting} className="btn-primary" title="保存服务器配置">
           {submitting ? '保存中…' : '保存'}
         </button>
       </div>
