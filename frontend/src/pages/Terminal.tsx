@@ -7,6 +7,7 @@ import ServerInfo from '../components/ServerInfo'
 import FileManager from '../components/FileManager'
 import TerminalTab from '../terminal/TerminalTab'
 import { useServers } from '../store/servers'
+import { useI18n } from '../utils/i18n'
 import {
   AlertIcon,
   CheckCircleIcon,
@@ -43,6 +44,7 @@ function loadTabs(): TabInfo[] {
 }
 
 export default function Terminal({ serverId }: { serverId?: string }) {
+  const t = useI18n()
   const navigate = useNavigate()
   const servers = useServers((s) => s.servers)
   const load = useServers((s) => s.load)
@@ -215,7 +217,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
             <PlusIcon size={14} />
           </button>
           {tabs.length === 0 && (
-            <span className="flex items-center px-3 text-xs text-faint">未打开任何终端</span>
+            <span className="flex items-center px-3 text-xs text-faint">{t('noTerminals')}</span>
           )}
         </div>
 
@@ -247,7 +249,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
                 }`}
               >
                 <ServerIcon size={13} />
-                服务器信息
+                {t('serverInfo')}
               </button>
               <button
                 onClick={() => setLeftTab('files')}
@@ -258,7 +260,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
                 }`}
               >
                 <FolderOpenIcon size={13} />
-                文件管理
+                {t('fileManager')}
               </button>
             </div>
             <div className="min-h-0 flex-1">
@@ -273,19 +275,16 @@ export default function Terminal({ serverId }: { serverId?: string }) {
 
         <div className="min-w-0 flex-1">
           {tabs.length === 0 ? (
-            <div className="flex h-full items-center justify-center">
-              <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-line-strong bg-panel/40 px-10 py-12 text-center">
-                <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/20 bg-accent-dim text-accent">
+            <div className="flex h-full min-w-0 items-center justify-center overflow-y-auto p-4">
+              <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-2xl border border-dashed border-line-strong bg-panel/40 px-6 py-10 text-center sm:px-10 sm:py-12">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-accent/20 bg-accent-dim text-accent">
                   <TerminalIcon size={26} />
                 </span>
-                <div>
-                  <p className="text-sm font-medium text-ink">尚未打开任何终端</p>
-                  <p className="mt-1 text-xs text-soft">
-                    选择一个服务器开始 SSH 会话，或使用右侧常用命令快速操作
-                  </p>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink">{t('noTerminalOpen')}</p>
                 </div>
-                <button className="btn-primary" onClick={() => setPickerOpen(true)}>
-                  <ServerIcon size={15} /> 选择服务器
+                <button className="btn-primary shrink-0" onClick={() => setPickerOpen(true)}>
+                  <ServerIcon size={15} /> {t('selectServer')}
                 </button>
               </div>
             </div>
@@ -318,7 +317,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
                 }`}
               >
                 <CommandIcon size={13} />
-                常用命令
+                {t('commonCommands')}
               </button>
               <button
                 onClick={() => setSideTab('ai')}
@@ -329,7 +328,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
                 }`}
               >
                 <SparklesIcon size={13} />
-                AI 助手
+                {t('aiAssistant')}
               </button>
             </div>
             <div className="min-h-0 flex-1">
@@ -346,7 +345,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
       {/* 服务器选择 */}
       <Modal
         open={pickerOpen}
-        title="选择服务器"
+        title={t('selectServer')}
         description="选择一个服务器打开新的终端标签"
         onClose={() => setPickerOpen(false)}
       >
@@ -389,7 +388,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
             className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] shadow-xl shadow-black/40 backdrop-blur ${
               toast.type === 'ok'
                 ? 'border-accent/25 bg-panel/95 text-ink'
-                : 'border-danger/30 bg-danger-dim/95 text-red-200'
+                : 'border-danger/30 bg-danger-dim/95 text-danger'
             }`}
           >
             {toast.type === 'ok' ? (

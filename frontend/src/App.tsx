@@ -1,6 +1,7 @@
 import { ReactElement, useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from './store/auth'
+import { useSettings, applyTheme, resolveTheme } from './store/settings'
 import Login from './pages/Login'
 import Workspace from './components/Workspace'
 import { LoaderIcon, TerminalIcon } from './components/icons'
@@ -38,6 +39,19 @@ export default function App() {
   useEffect(() => {
     init()
   }, [init])
+
+  const theme = useSettings((s) => s.theme)
+  useEffect(() => {
+    applyTheme(theme)
+    if (theme !== 'system') return
+    const mql = window.matchMedia('(prefers-color-scheme: light)')
+    const onChange = () => {
+      document.documentElement.dataset.theme = resolveTheme(theme)
+      document.documentElement.style.colorScheme = resolveTheme(theme)
+    }
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [theme])
 
   return (
     <Routes>

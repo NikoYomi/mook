@@ -6,7 +6,7 @@ interface AuthState {
   loading: boolean
   setupRequired: boolean
   init: () => Promise<void>
-  login: (username: string, password: string) => Promise<void>
+  login: (password: string) => Promise<void>
   setup: (password: string) => Promise<void>
   logout: () => Promise<void>
   setUsername: (username: string) => void
@@ -30,14 +30,14 @@ export const useAuth = create<AuthState>((set) => ({
       set({ loading: false })
     }
   },
-  async login(username, password) {
-    const r = await api.login(username, password)
+  async login(password) {
+    const r = await api.login(password)
     set({ user: r.username, setupRequired: false })
   },
   async setup(password) {
     await api.setup(password)
     set({ setupRequired: false })
-    const r = await api.login('admin', password)
+    const r = await api.login(password)
     set({ user: r.username })
   },
   async logout() {

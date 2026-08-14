@@ -169,7 +169,7 @@ export default function FileManager({ serverId }: { serverId: number | null }) {
       </div>
 
       {error && (
-        <div className="flex items-start gap-1.5 border-b border-danger/20 bg-danger-dim px-3 py-1.5 text-[11px] text-red-300">
+        <div className="flex items-start gap-1.5 border-b border-danger/20 bg-danger-dim px-3 py-1.5 text-[11px] text-danger">
           <AlertIcon size={12} className="mt-0.5 shrink-0 text-danger" />
           <span className="min-w-0 break-all">{error}</span>
         </div>
@@ -324,7 +324,7 @@ function MkdirModal({
           autoFocus
         />
         {error && (
-          <div className="rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-xs text-red-300">
+          <div className="rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-xs text-danger">
             {error}
           </div>
         )}

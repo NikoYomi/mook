@@ -24,11 +24,17 @@ func exportBackup(db *sql.DB) http.HandlerFunc {
 				settings[key] = v
 			}
 		}
+		cmds, err := database.ListCommonCommands(db)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "读取常用命令失败")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"version":     1,
-			"exported_at": time.Now().Format(time.RFC3339),
-			"servers":     servers,
-			"settings":    settings,
+			"version":         1,
+			"exported_at":     time.Now().Format(time.RFC3339),
+			"servers":         servers,
+			"settings":        settings,
+			"common_commands": cmds,
 		})
 	}
 }
@@ -37,9 +43,10 @@ func exportBackup(db *sql.DB) http.HandlerFunc {
 func restoreBackup(db *sql.DB, secret string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
-			Version  int                 `json:"version"`
-			Servers  []*database.Server  `json:"servers"`
-			Settings map[string]string   `json:"settings"`
+			Version        int                       `json:"version"`
+			Servers        []*database.Server        `json:"servers"`
+			Settings       map[string]string         `json:"settings"`
+			CommonCommands []database.CommonCommand  `json:"common_commands"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 			writeErr(w, http.StatusBadRequest, "备份文件格式错误")
@@ -68,6 +75,12 @@ func restoreBackup(db *sql.DB, secret string) http.HandlerFunc {
 			switch key {
 			case keyAIBaseURL, keyAIModel, keyAIAPIKey, keyAIValidated:
 				_ = database.SetSetting(db, key, val)
+			}
+		}
+		if in.CommonCommands != nil {
+			if err := database.ReplaceCommonCommands(db, in.CommonCommands); err != nil {
+				writeErr(w, http.StatusInternalServerError, "还原常用命令失败")
+				return
 			}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "servers_restored": restored})

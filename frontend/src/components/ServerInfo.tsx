@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type ServerStats } from '../api/client'
 import { useServers } from '../store/servers'
-import { formatBytes, formatDateTime, formatSpeed } from '../utils/command'
+import { formatBytes, formatDateTime } from '../utils/command'
 import {
   ActivityIcon,
   AlertIcon,
@@ -10,15 +10,13 @@ import {
   CopyIcon,
   CpuIcon,
   DatabaseIcon,
-  DownloadIcon,
   GlobeIcon,
   HardDriveIcon,
   LoaderIcon,
   ServerIcon,
-  UploadIcon,
 } from './icons'
 
-const POLL_MS = 2000
+const POLL_MS = 3000
 
 export default function ServerInfo({ serverId }: { serverId: number | null }) {
   const servers = useServers((s) => s.servers)
@@ -28,46 +26,33 @@ export default function ServerInfo({ serverId }: { serverId: number | null }) {
 
   const [stats, setStats] = useState<ServerStats | null>(null)
   const [statsError, setStatsError] = useState('')
-  const prevRef = useRef<{ ts: number; rx: number; tx: number } | null>(null)
-  const [down, setDown] = useState(0)
-  const [up, setUp] = useState(0)
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef<number | undefined>(undefined)
 
-  // 定时轮询服务器实时状态，并基于前后两次流量采样计算上传/下载速率
+  // 串行轮询服务器实时状态（上一次完成后才排下一次），避免高延迟下请求重叠、响应乱序。
   useEffect(() => {
     setStats(null)
     setStatsError('')
-    prevRef.current = null
-    setDown(0)
-    setUp(0)
     if (serverId == null) return
 
     let stop = false
+    let timer: number | undefined
     const load = async () => {
       try {
         const s = await api.serverStats(serverId)
         if (stop) return
         setStats(s)
         setStatsError('')
-        const p = prevRef.current
-        if (p && s.ts > p.ts) {
-          const dt = s.ts - p.ts
-          if (dt > 0) {
-            setDown(Math.max(0, (s.net_rx - p.rx) / dt))
-            setUp(Math.max(0, (s.net_tx - p.tx) / dt))
-          }
-        }
-        prevRef.current = { ts: s.ts, rx: s.net_rx, tx: s.net_tx }
       } catch (err) {
         if (!stop) setStatsError(err instanceof Error ? err.message : '采集失败')
+      } finally {
+        if (!stop) timer = window.setTimeout(load, POLL_MS)
       }
     }
     load()
-    const iv = window.setInterval(load, POLL_MS)
     return () => {
       stop = true
-      window.clearInterval(iv)
+      window.clearTimeout(timer)
     }
   }, [serverId])
 
@@ -117,7 +102,7 @@ export default function ServerInfo({ serverId }: { serverId: number | null }) {
       </div>
 
       {statsError && (
-        <div className="mb-2 flex items-center gap-1.5 rounded-lg border border-danger/25 bg-danger-dim px-2.5 py-1.5 text-[11px] text-red-300">
+        <div className="mb-2 flex items-center gap-1.5 rounded-lg border border-danger/25 bg-danger-dim px-2.5 py-1.5 text-[11px] text-danger">
           <AlertIcon size={12} className="shrink-0 text-danger" />
           <span className="min-w-0 break-all">{statsError}</span>
         </div>
@@ -213,21 +198,6 @@ export default function ServerInfo({ serverId }: { serverId: number | null }) {
             </div>
           </div>
         )}
-
-        <div className={metric} title="网络速度（下载 | 上传）">
-          <span className="flex items-center gap-1.5">
-            <DownloadIcon size={13} className="shrink-0 text-faint" />
-            <span className="font-mono text-xs text-soft">
-              {stats ? formatSpeed(down) : statsError ? '--' : '0 B/s'}
-            </span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <UploadIcon size={13} className="shrink-0 text-faint" />
-            <span className="font-mono text-xs text-soft">
-              {stats ? formatSpeed(up) : statsError ? '--' : '0 B/s'}
-            </span>
-          </span>
-        </div>
 
         <div className={metric}>
           <span className={metricLabel}>

@@ -16,9 +16,11 @@ import (
 	"mook/utils"
 )
 
-// ---- 服务器实时状态采集（延迟 / CPU / 内存 / 磁盘 / 网络流量）----
+// ---- 服务器实时状态采集（延迟 / CPU / 内存 / 磁盘）----
 
-// statScript 在远端执行的一次性采集脚本（POSIX sh，同时兼容 GNU/Linux /proc 与 macOS sysctl/netstat）
+// statScript 在远端执行的一次性采集脚本。
+// 仅依赖 grep/sed/cut/tr/head/tail 等 POSIX 基础工具，不依赖 awk（部分精简系统无 awk，
+// 会导致内存/磁盘/CPU 全部解析失败），同时兼容 GNU/Linux /proc 与 macOS sysctl。
 const statScript = `echo "STAT_BEGIN"
 if [ -r /proc/cpuinfo ]; then
   echo "cores=$(grep -c '^processor' /proc/cpuinfo)"
@@ -33,25 +35,26 @@ else
   echo "load=$(sysctl -n vm.loadavg | tr -d '{}')"
 fi
 if [ -r /proc/stat ]; then
-  echo "cpu=$(awk '/^cpu /{print}' /proc/stat)"
-else
-  echo "cpuusage=$(top -l 2 -n 0 2>/dev/null | awk -F'CPU usage: ' '/CPU usage:/{split($2,a,","); gsub("%","",a[1]); gsub("%","",a[2]); last=a[1]+a[2]} END{print last}')"
+  echo "cpu=$(grep '^cpu ' /proc/stat | head -n 1)"
 fi
 if [ -r /proc/meminfo ]; then
-  echo "mem=$(awk '/^MemTotal/{t=$2*1024} /^MemAvailable/{a=$2*1024} END{print t, t-a}' /proc/meminfo)"
+  T=$(grep '^MemTotal:' /proc/meminfo | tr -dc '0-9')
+  A=$(grep '^MemAvailable:' /proc/meminfo | tr -dc '0-9')
+  [ -z "$A" ] && A=$T
+  echo "mem=$((T * 1024)) $(((T - A) * 1024))"
 else
-  T=$(sysctl -n hw.memsize)
-  FREE=$(vm_stat | awk '/^Pages free/{print $3}' | tr -d '.')
-  INACT=$(vm_stat | awk '/^Pages inactive/{print $3}' | tr -d '.')
-  U=$((T - (FREE + INACT) * 4096))
-  [ "$U" -lt 0 ] && U=0
-  echo "mem=$T $U"
+  T=$(sysctl -n hw.memsize 2>/dev/null)
+  [ -n "$T" ] && {
+    FREE=$(vm_stat | grep '^Pages free' | tr -dc '0-9')
+    INACT=$(vm_stat | grep '^Pages inactive' | tr -dc '0-9')
+    U=$((T - (FREE + INACT) * 4096))
+    [ "$U" -lt 0 ] && U=0
+    echo "mem=$T $U"
+  }
 fi
-echo "disk=$(df -k / | awk 'NR==2{print $2*1024, $3*1024}')"
-if [ -r /proc/net/dev ]; then
-  echo "net=$(awk '/^[[:space:]]*[a-zA-Z0-9._-]+:/{n=$1; sub(":" ,"",n); if(n!="lo"){rx+=$2; tx+=$10}} END{print rx, tx}' /proc/net/dev)"
-else
-  echo "net=$(netstat -ib 2>/dev/null | tail -n +2 | awk '$1!~/^lo/ && NF>=10 && $7 ~ /^[0-9]+$/{rx+=$7; tx+=$10} END{print rx, tx}')"
+set -- $(df -Pk / 2>/dev/null | sed -n '2p')
+if [ -n "$2" ]; then
+  echo "disk=$(( $2 * 1024 )) $(( $3 * 1024 ))"
 fi
 echo "STAT_END"`
 
@@ -79,8 +82,6 @@ type serverStats struct {
 	MemUsed    int64   `json:"mem_used"`
 	DiskTotal  int64   `json:"disk_total"`
 	DiskUsed   int64   `json:"disk_used"`
-	NetRx      int64   `json:"net_rx"` // 网卡累计接收字节
-	NetTx      int64   `json:"net_tx"` // 网卡累计发送字节
 	TS         int64   `json:"ts"`
 }
 
@@ -186,12 +187,6 @@ func parseStatOutput(out string, serverID int64, latency time.Duration) *serverS
 			if len(parts) >= 2 {
 				stats.DiskTotal, _ = strconv.ParseInt(parts[0], 10, 64)
 				stats.DiskUsed, _ = strconv.ParseInt(parts[1], 10, 64)
-			}
-		case strings.HasPrefix(line, "net="):
-			parts := strings.Fields(strings.TrimPrefix(line, "net="))
-			if len(parts) >= 2 {
-				stats.NetRx, _ = strconv.ParseInt(parts[0], 10, 64)
-				stats.NetTx, _ = strconv.ParseInt(parts[1], 10, 64)
 			}
 		}
 	}

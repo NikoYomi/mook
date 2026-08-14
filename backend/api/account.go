@@ -46,6 +46,29 @@ func changeUsername(db *sql.DB) http.HandlerFunc {
 	}
 }
 
+// POST /api/me/verify-password —— 仅验证当前密码是否正确（不修改）
+func verifyPassword(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u := auth.CurrentUser(r)
+		if u == nil {
+			writeErr(w, http.StatusUnauthorized, "请先登录")
+			return
+		}
+		var in struct {
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			writeErr(w, http.StatusBadRequest, "请求格式错误")
+			return
+		}
+		if !auth.CheckPassword(u.PasswordHash, in.Password) {
+			writeErr(w, http.StatusBadRequest, "当前密码错误")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
+}
+
 // POST /api/me/password —— 修改当前用户密码
 func changePassword(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

@@ -65,10 +65,7 @@ export default function AiPanel({ onRun }: Props) {
           AI 助手 · 分析日志
         </div>
         <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          粘贴日志或命令输出，AI 帮你找出异常并给出处理建议。
-          <span className="mt-0.5 block">
-            想要「生成命令」？在右侧「常用命令 → 添加」弹窗里直接描述即可。
-          </span>
+          不懂就问，复制粘贴给 AI，让它回答你。
         </p>
       </div>
 
@@ -78,7 +75,7 @@ export default function AiPanel({ onRun }: Props) {
           onChange={(e) => setInput(e.target.value)}
           rows={7}
           className="input flex-none resize-none font-mono text-xs leading-relaxed"
-          placeholder="粘贴日志或命令输出，例如：dmesg、服务日志…"
+          placeholder="例如：我运行xx命令，现在输出（粘贴输出），这是什么问题，如何解决？"
         />
         <button onClick={run} disabled={busy} className="btn-primary w-full flex-none">
           {busy ? (
@@ -94,7 +91,7 @@ export default function AiPanel({ onRun }: Props) {
         </button>
 
         {error && (
-          <div className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-xs text-red-300">
+          <div className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-xs text-danger">
             <AlertIcon size={14} className="mt-0.5 shrink-0 text-danger" />
             <span>{error}</span>
           </div>

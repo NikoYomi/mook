@@ -43,6 +43,55 @@ body {
   overflow: hidden;
 }
 
+/* ---------- Light theme (Apple 极简 · 多级白色阶) ---------- */
+/* 层次：canvas(背景灰) < panel-2(内嵌浅灰白) < panel(主卡片纯白) < raise(悬停更深) */
+html[data-theme='light'] {
+  color-scheme: light;
+  --color-canvas: #eff0f4;
+  --color-panel: #ffffff;
+  --color-panel-2: #f7f8fb;
+  --color-raise: #e9ebf0;
+  --color-line: #e4e6eb;
+  --color-line-strong: #d0d4dc;
+  --color-ink: #1d1d1f;
+  --color-soft: #6e6e73;
+  --color-faint: #8e8e93;
+  --color-accent: #34c759;
+  --color-accent-bright: #28a745;
+  --color-accent-dim: #e9f8ec;
+  --color-danger: #ff3b30;
+  --color-danger-dim: #ffeceb;
+  --color-warn: #ff9500;
+  --color-info: #0071e3;
+}
+
+/* 亮色主题下黑阴影改柔和，衬托白色卡片的浮起感 */
+html[data-theme='light'] .shadow-black\/40,
+html[data-theme='light'] .shadow-black\/50,
+html[data-theme='light'] .shadow-black\/60 {
+  --tw-shadow-color: rgba(29, 29, 31, 0.08);
+}
+
+/* 亮色下「选择服务器」等遮罩内嵌块底色更实，层次清晰 */
+html[data-theme='light'] .bg-panel\/40 {
+  background-color: rgba(255, 255, 255, 0.72);
+}
+
+html[data-theme='light'] ::selection {
+  background: rgba(52, 199, 89, 0.28);
+}
+
+html[data-theme='light'] *::-webkit-scrollbar-thumb {
+  background: #d0d0d4;
+}
+html[data-theme='light'] *::-webkit-scrollbar-thumb:hover {
+  background: #b8b8bd;
+}
+
+html[data-theme='light'] .btn-primary {
+  color: #ffffff;
+}
+
 * {
   box-sizing: border-box;
 }

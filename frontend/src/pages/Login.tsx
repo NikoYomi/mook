@@ -2,6 +2,7 @@ import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../store/auth'
+import { useI18n } from '../utils/i18n'
 import {
   AlertIcon,
   EyeIcon,
@@ -10,12 +11,11 @@ import {
   LockIcon,
   ShieldIcon,
   TerminalIcon,
-  UserIcon,
 } from '../components/icons'
 
 export default function Login() {
+  const t = useI18n()
   const { loading, setupRequired, init, login, setup, user } = useAuth()
-  const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [show, setShow] = useState(false)
@@ -41,7 +41,7 @@ export default function Login() {
     setBusy(true)
     try {
       if (setupRequired) await setup(password)
-      else await login(username.trim() || 'admin', password)
+      else await login(password)
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失败')
     } finally {
@@ -81,22 +81,6 @@ export default function Login() {
               首次使用，请设置管理员密码（至少 6 位）
             </p>
           )}
-          <label className="block">
-            <span className="label">用户名</span>
-            <div className="relative">
-              <UserIcon
-                size={15}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
-              />
-              <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="admin"
-                className="input py-2.5 pl-9"
-                autoComplete="username"
-              />
-            </div>
-          </label>
           <label className="block">
             <span className="label">{setupRequired ? '设置密码' : '密码'}</span>
             <div className="relative">
@@ -145,7 +129,7 @@ export default function Login() {
           )}
 
           {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-red-300">
+            <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-danger">
               <AlertIcon size={14} className="shrink-0 text-danger" />
               {error}
             </div>
@@ -154,19 +138,19 @@ export default function Login() {
           <button type="submit" disabled={busy} className="btn-primary w-full py-2.5">
             {busy ? (
               <>
-                <LoaderIcon size={14} className="animate-spin" /> 处理中…
+                <LoaderIcon size={14} className="animate-spin" /> {t('loginLoading')}
               </>
             ) : setupRequired ? (
               '初始化并进入'
             ) : (
-              '登录'
+              t('login')
             )}
           </button>
         </form>
 
         <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[11px] text-faint">
           <ShieldIcon size={12} />
-          密码 bcrypt 加密存储 · 会话有效期 7 天 · 失败 5 次锁定 15 分钟
+          会话有效期 6 小时 · 失败 5 次锁定 15 分钟
         </p>
       </div>
     </div>

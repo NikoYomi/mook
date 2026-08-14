@@ -1,15 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
-import { AlertIcon, RefreshIcon } from '../components/icons'
+import { AlertIcon, LayersIcon, RefreshIcon } from '../components/icons'
+import { useI18n } from '../utils/i18n'
+import { useSettings } from '../store/settings'
+import { BACKGROUNDS, bgStyle, CYCLE_ORDER, XTERM_BG_CLASSIC, XTERM_BG_TEXTURE } from './backgrounds'
 
-// 错误/下载相关关键词 → 行文字标红，网络错误前缀等常见词也覆盖
+// 错误/下载相关关键词 → 行文字标红
 const ERR_RE =
   /\b(error|failed|failure|fatal|denied|refused|exception|panic|killed|not found|no such file|no such directory|unable to|cannot|could not|command not found|permission denied|syntax error|unrecognized|segmentation fault|traceback)\b|\b(错误|失败|拒绝|无法|无效|找不到|不存在|超时|异常|无权限|权限被拒绝)\b/i
-// 形如 user@host ... $ / # / % [命令] 的提示符行（含用户输入回显）→ 标绿
-const PROMPT_RE = /^[^\n]*@[^\n]*[\$#>%](?:\s+\S+.*)?$/
+// 形如 user@host ... $ / # 的提示符行 → 标绿（允许命令与尾部空格）
+const PROMPT_RE = /^[^\n]*@[^\n]*[\$#>%][^\n]*$/
+// 清除终端中的 ANSI 转义（CSI / OSC / 字符集），用于纯文本匹配
+const stripAnsi = (s: string) =>
+  s
+    .replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '')
+    .replace(/\x1b[()][0-9A-Za-z]/g, '')
+
 // 行首的回车 / ANSI 控制序列（如 \r \x1b[0m \x1b[J），在其后插入颜色以绕过 reset
 const ANSI_LEAD_RE = /^(\r\n?|\x1b\[[0-9;?]*[A-Za-z])*/
+
+const isPrintable = (c: string) => /[\x20-\x7e]/.test(c)
 
 interface Props {
   tabKey: number
@@ -28,10 +40,23 @@ export default function TerminalTab({
   registerExec,
   unregisterExec,
 }: Props) {
+  const t = useI18n()
   const elRef = useRef<HTMLDivElement>(null)
+  const termRef = useRef<Terminal | null>(null)
   const [status, setStatus] = useState<Status>('connecting')
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
+
+  const termBg = useSettings((s) => s.termBg)
+  const termBgImage = useSettings((s) => s.termBgImage)
+  const setTermBg = useSettings((s) => s.setTermBg)
+
+  const cycleBackground = () => {
+    const order = CYCLE_ORDER
+    const idx = order.indexOf(termBg)
+    const next = order[(idx + 1) % order.length]
+    setTermBg(next)
+  }
 
   useEffect(() => {
     const el = elRef.current
@@ -40,9 +65,11 @@ export default function TerminalTab({
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 13,
+      allowProposedApi: true,
       fontFamily: '"JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace',
+      allowTransparency: true,
       theme: {
-        background: '#070d1a',
+        background: termBg === 'classic' ? XTERM_BG_CLASSIC : XTERM_BG_TEXTURE,
         foreground: '#e2e8f0',
         cursor: '#22c55e',
         cursorAccent: '#020617',
@@ -52,6 +79,7 @@ export default function TerminalTab({
       },
       scrollback: 5000,
     })
+    termRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(el)
@@ -82,18 +110,38 @@ export default function TerminalTab({
       }
     }
 
-    // 对输出按行注入 ANSI 颜色：错误行红、提示符/用户输入行绿
+    // 用户输入回显追踪：远端会把用户输入原样回显，用括号匹配来标绿
+    let echoTarget = ''
+
     const decorateLine = (line: string) => {
       const leadMatch = ANSI_LEAD_RE.exec(line)
       const lead = leadMatch ? leadMatch[0] : ''
       const rest = line.slice(lead.length)
       if (!rest) return line
-      if (ERR_RE.test(rest)) return `${lead}\x1b[31m${rest}\x1b[0m`
-      if (PROMPT_RE.test(rest)) return `${lead}\x1b[32m${rest}\x1b[0m`
+
+      // 1) 用户输入回显 → 绿（优先，避免被错误关键词误判）
+      if (echoTarget) {
+        let i = 0
+        while (i < rest.length && i < echoTarget.length && rest[i] === echoTarget[i]) i++
+        if (i > 0) {
+          const matched = rest.slice(0, i)
+          const tail = rest.slice(i)
+          echoTarget = echoTarget.slice(i)
+          return `${lead}\x1b[32m${matched}\x1b[0m${tail}`
+        }
+        // 回显与预期不匹配（如密码不回显）→ 放弃追踪
+        echoTarget = ''
+      }
+
+      const clean = stripAnsi(rest)
+      // 2) 报错 → 红
+      if (ERR_RE.test(clean)) return `${lead}\x1b[31m${rest}\x1b[0m`
+      // 3) 提示符 → 绿
+      if (PROMPT_RE.test(clean)) return `${lead}\x1b[32m${rest}\x1b[0m`
       return line
     }
-    // 按行注入 ANSI 颜色：错误行红、提示符/用户输入行绿。
-    // 行以 \n 或 \r 分隔；无分隔符的尾部（如未换行的提示符）立即输出，避免暂存导致不显示。
+
+    // 按行注入 ANSI 颜色。行以 \n 或 \r 分隔；无分隔符的尾部（如未换行的提示符）立即输出
     let pending = ''
     const decorate = (chunk: string) => {
       pending += chunk
@@ -132,6 +180,7 @@ export default function TerminalTab({
       try {
         const m = JSON.parse(ev.data)
         if (m.type === 'output') {
+          // 输出到达即认为回显目标已消耗完毕（多数回显不含换行）
           term.write(decorate(m.data))
         } else if (m.type === 'error') {
           setStatus('closed')
@@ -156,12 +205,44 @@ export default function TerminalTab({
     // 供右侧「常用命令 / AI」把命令写入当前会话
     const exec = (cmd: string) => {
       if (ws.readyState === WebSocket.OPEN) {
+        for (const c of cmd + ' ') if (isPrintable(c)) echoTarget += c
         send({ type: 'input', data: `${cmd}\r` })
       }
+      // 命令写入后把键盘焦点还给终端，方便继续输入
+      term.focus()
     }
     registerExec?.(tabKey, exec)
 
-    const dataDisposer = term.onData((d) => send({ type: 'input', data: d }))
+    const dataDisposer = term.onData((d) => {
+      // 记录可显示字符作为回显匹配目标（忽略控制序列）
+      for (const c of d) if (isPrintable(c)) echoTarget += c
+      send({ type: 'input', data: d })
+    })
+
+    // Ctrl/Cmd + Shift + C 复制选中内容，Shift + V 粘贴（不发送到远端）。
+    // xterm 5.x 该 API 返回 void，会随 term.dispose() 一并清理。
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
+        const sel = term.getSelection()
+        if (sel) navigator.clipboard.writeText(sel).catch(() => {})
+        return false
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
+        navigator.clipboard
+          .readText()
+          .then((txt) => {
+            if (txt) {
+              for (const c of txt) if (isPrintable(c)) echoTarget += c
+              send({ type: 'input', data: txt })
+            }
+          })
+          .catch(() => {})
+        return false
+      }
+      return true
+    })
+
     const ro = new ResizeObserver(() => {
       doFit()
       sendResize()
@@ -174,8 +255,33 @@ export default function TerminalTab({
       unregisterExec?.(tabKey)
       ws.close()
       term.dispose()
+      termRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverId, retry, tabKey, registerExec, unregisterExec])
+
+  // 背景切换：仅更新容器样式与 xterm 透明度，不重建会话
+  useEffect(() => {
+    const el = elRef.current
+    if (!el) return
+    const style = bgStyle(termBg, termBgImage)
+    Object.assign(el.style, style)
+    const term = termRef.current
+    if (term) {
+      term.options.theme = {
+        ...term.options.theme,
+        background: termBg === 'classic' ? XTERM_BG_CLASSIC : XTERM_BG_TEXTURE,
+      }
+      try {
+        term.refresh(0, term.rows - 1)
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [termBg, termBgImage])
+
+  const flexreset =
+    'flex shrink-0 cursor-pointer items-center justify-center rounded-md bg-canvas/40 text-faint transition-colors duration-150 hover:bg-raise hover:text-ink'
 
   return (
     <div className="flex h-full flex-col">
@@ -192,25 +298,35 @@ export default function TerminalTab({
                   : 'text-danger'
             }
           >
-            {status === 'connected' ? '已连接' : status === 'connecting' ? '连接中…' : '已断开'}
+            {status === 'connected' ? t('connected') : status === 'connecting' ? t('connecting') : t('disconnected')}
           </span>
         </div>
-        {status === 'closed' && (
+        <div className="flex shrink-0 items-center gap-1.5">
           <button
-            onClick={() => setRetry((r) => r + 1)}
-            className="btn-soft flex-none py-1 text-[11px]"
+            onClick={cycleBackground}
+            className={flexreset}
+            title={`切换终端背景（当前：${(BACKGROUNDS[termBg] as { name: string })?.name ?? termBg}）`}
+            aria-label="切换终端背景"
           >
-            <RefreshIcon size={12} /> 重新连接
+            <LayersIcon size={13} />
           </button>
-        )}
+          {status === 'closed' && (
+            <button
+              onClick={() => setRetry((r) => r + 1)}
+              className="btn-soft flex-none py-1 text-[11px]"
+            >
+              <RefreshIcon size={12} /> {t('retry')} 重新连接
+            </button>
+          )}
+        </div>
       </div>
       {error && status === 'closed' && (
-        <div className="flex items-center gap-1.5 border-b border-danger/20 bg-danger-dim px-3 py-1.5 text-[11px] text-red-300">
+        <div className="flex items-center gap-1.5 border-b border-danger/20 bg-danger-dim px-3 py-1.5 text-[11px] text-danger">
           <AlertIcon size={12} className="shrink-0 text-danger" />
           <span className="truncate">{error}</span>
         </div>
       )}
-      <div ref={elRef} className="min-h-0 flex-1 bg-[#070d1a] p-1" />
+      <div ref={elRef} className="min-h-0 flex-1 p-1" style={bgStyle(termBg, termBgImage)} />
     </div>
   )
 }

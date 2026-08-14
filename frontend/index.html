@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -6,6 +6,28 @@
     <meta name="theme-color" content="#020617" />
     <meta name="description" content="Mook - AI 驱动的自托管 SSH 终端与服务器管理工具" />
     <title>Mook · AI SSH 终端</title>
+    <script>
+      // 首屏前应用主题，避免亮色/暗色闪烁
+      ;(function () {
+        try {
+          var raw = localStorage.getItem('mook.settings')
+          var theme = 'dark'
+          if (raw) {
+            var data = JSON.parse(raw)
+            if (data && data.state && data.state.theme) theme = data.state.theme
+          }
+          var resolved =
+            theme === 'system'
+              ? window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark'
+              : theme
+          document.documentElement.dataset.theme = resolved
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

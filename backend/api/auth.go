@@ -96,11 +96,15 @@ func handleLogin(db *sql.DB) http.HandlerFunc {
 			return
 		}
 		name := strings.TrimSpace(req.Username)
+		var u *database.User
+		var err error
 		if name == "" {
-			name = "admin"
+			// 单密码登录：不区分用户名，直接以系统中的唯一用户校验
+			u, err = database.GetFirstUser(db)
+		} else {
+			u, err = database.GetUserByUsername(db, name)
 		}
-		u, err := database.GetUserByUsername(db, name)
-		if err != nil || !auth.CheckPassword(u.PasswordHash, req.Password) {
+		if err != nil || u == nil || !auth.CheckPassword(u.PasswordHash, req.Password) {
 			noteLoginFail(ip)
 			writeErr(w, http.StatusUnauthorized, "用户名或密码错误")
 			return

@@ -27,6 +27,14 @@ export interface AiSettings {
   model: string
   has_api_key: boolean
   validated: boolean
+  custom_providers: CustomProviderSetting[]
+}
+
+export interface CustomProviderSetting {
+  name: string
+  base_url: string
+  model: string
+  has_api_key: boolean
 }
 
 export interface SaveAiResult {
@@ -65,7 +73,14 @@ export interface BackupData {
   exported_at?: string
   servers: BackupServerItem[]
   settings: Record<string, string>
-  common_commands?: unknown
+  common_commands?: CommonCommandItem[]
+}
+
+export interface CommonCommandItem {
+  id: string
+  name: string
+  command: string
+  category?: string
 }
 
 export interface ServerStats {
@@ -79,8 +94,6 @@ export interface ServerStats {
   mem_used: number
   disk_total: number
   disk_used: number
-  net_rx: number
-  net_tx: number
   ts: number
 }
 
@@ -117,8 +130,8 @@ function requestRaw<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   setupStatus: () => request<{ setup_required: boolean }>('/api/setup/status'),
   setup: (password: string) => request<{ ok: boolean }>('/api/setup', { method: 'POST', body: JSON.stringify({ password }) }),
-  login: (username: string, password: string) =>
-    request<{ ok: boolean; username: string }>('/api/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  login: (password: string) =>
+    request<{ ok: boolean; username: string }>('/api/login', { method: 'POST', body: JSON.stringify({ password }) }),
   logout: () => request<{ ok: boolean }>('/api/logout', { method: 'POST' }),
   me: () => request<{ username: string }>('/api/me'),
 
@@ -128,7 +141,7 @@ export const api = {
   deleteServer: (id: number) => request<{ ok: boolean }>(`/api/servers/${id}`, { method: 'DELETE' }),
 
   getAiSettings: () => request<AiSettings>('/api/settings/ai'),
-  saveAiSettings: (s: { base_url: string; model: string; api_key: string }) =>
+  saveAiSettings: (s: { base_url: string; model: string; api_key: string; provider_id: string; custom_name: string }) =>
     request<SaveAiResult>('/api/settings/ai', { method: 'POST', body: JSON.stringify(s) }),
 
   aiCommand: (prompt: string) => request<{ result: string }>('/api/ai/command', { method: 'POST', body: JSON.stringify({ prompt }) }),
@@ -157,9 +170,16 @@ export const api = {
   // ---- 服务器实时状态 ----
   serverStats: (id: number) => request<ServerStats>(`/api/servers/${id}/stats`),
 
+  // ---- 常用命令（持久化于服务端 /data）----
+  listCommands: () => request<CommonCommandItem[]>('/api/commands'),
+  saveCommands: (commands: CommonCommandItem[]) =>
+    request<{ ok: boolean }>('/api/commands', { method: 'PUT', body: JSON.stringify(commands) }),
+
   // ---- 账户 ----
   changeUsername: (username: string) =>
     request<{ ok: boolean; username: string }>('/api/me/username', { method: 'POST', body: JSON.stringify({ username }) }),
+  verifyPassword: (password: string) =>
+    request<{ ok: boolean }>('/api/me/verify-password', { method: 'POST', body: JSON.stringify({ password }) }),
   changePassword: (old_password: string, new_password: string) =>
     request<{ ok: boolean }>('/api/me/password', { method: 'POST', body: JSON.stringify({ old_password, new_password }) }),
 
@@ -169,8 +189,12 @@ export const api = {
     request<{ ok: boolean; servers_restored: number }>('/api/backup/restore', { method: 'POST', body: JSON.stringify(data) }),
 
   // ---- AI 模型列表 ----
-  listModels: (base_url: string, api_key: string) =>
-    request<{ models: string[] }>(
+  listModels: (base_url: string, api_key: string) => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 20000)
+    return request<{ models: string[] }>(
       `/api/ai/models?base_url=${encodeURIComponent(base_url)}&api_key=${encodeURIComponent(api_key)}`,
-    ),
+      { signal: controller.signal },
+    ).finally(() => clearTimeout(timer))
+  },
 }

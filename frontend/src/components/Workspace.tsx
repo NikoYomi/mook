@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../store/auth'
 import { useAi } from '../store/ai'
+import { useCommands } from '../store/commands'
+import { useI18n } from '../utils/i18n'
 import Terminal from '../pages/Terminal'
 import Servers from '../pages/Servers'
 import SettingsModal, { type SettingsTab } from '../pages/Settings'
@@ -33,10 +35,12 @@ interface NavItem {
 }
 
 // 导航顺序：服务器、终端（设置移到右上角）
-const NAV_ITEMS: NavItem[] = [
-  { key: 'servers', label: '服务器', to: '/', icon: ServerIcon },
-  { key: 'terminal', label: '终端', to: '/terminal', icon: TerminalIcon },
-]
+function navItems(t: (k: string) => string): NavItem[] {
+  return [
+    { key: 'servers', label: t('servers'), to: '/', icon: ServerIcon },
+    { key: 'terminal', label: t('terminal'), to: '/terminal', icon: TerminalIcon },
+  ]
+}
 
 function AiBadge({ onOpen }: { onOpen: () => void }) {
   const settings = useAi((s) => s.settings)
@@ -59,21 +63,27 @@ function AiBadge({ onOpen }: { onOpen: () => void }) {
 }
 
 export default function Workspace() {
+  const t = useI18n()
   const { pathname } = useLocation()
   const terminalMatch = pathname.match(/^\/terminal\/(\d+)/)
   const navigate = useNavigate()
   const user = useAuth((s) => s.user)
   const logout = useAuth((s) => s.logout)
   const refreshAi = useAi((s) => s.refresh)
+  const initCommands = useCommands((s) => s.init)
   const view = viewOf(pathname)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>('ai')
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('general')
 
   useEffect(() => {
     refreshAi()
   }, [refreshAi])
+
+  useEffect(() => {
+    initCommands()
+  }, [initCommands])
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -106,7 +116,7 @@ export default function Workspace() {
             <span className="text-sm font-bold tracking-wide text-ink">Mook</span>
           </button>
           <nav className="flex items-center gap-0.5">
-            {NAV_ITEMS.map((item) => {
+            {navItems(t).map((item) => {
               const active = view === item.key
               const Icon = item.icon
               return (
@@ -135,18 +145,6 @@ export default function Workspace() {
               setSettingsOpen(true)
             }}
           />
-          <button
-            onClick={() => {
-              setSettingsTab('ai')
-              setSettingsOpen(true)
-            }}
-            className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] text-soft transition-colors duration-150 hover:bg-panel-2 hover:text-ink"
-            title="设置"
-            aria-label="设置"
-          >
-            <SettingsIcon size={15} />
-            <span className="hidden md:inline">设置</span>
-          </button>
 
           <div className="relative" ref={menuRef}>
             <button
@@ -170,19 +168,31 @@ export default function Workspace() {
             {menuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 top-[calc(100%+6px)] z-50 w-44 overflow-hidden rounded-xl border border-line bg-panel shadow-2xl shadow-black/50"
+                className="absolute right-0 top-[calc(100%+6px)] z-50 w-full overflow-hidden rounded-xl border border-line bg-panel shadow-2xl shadow-black/50"
               >
                 <div className="border-b border-line px-3 py-2.5">
                   <div className="truncate text-[13px] font-medium text-ink">{user}</div>
-                  <div className="mt-0.5 text-[11px] text-faint">管理员</div>
+                  <div className="mt-0.5 text-[11px] text-faint">{t('admin')}</div>
                 </div>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setSettingsTab('general')
+                    setSettingsOpen(true)
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2 border-b border-line px-3 py-2.5 text-left text-[13px] text-soft transition-colors duration-150 hover:bg-panel-2 hover:text-ink"
+                >
+                  <SettingsIcon size={15} />
+                  {t('settings')}
+                </button>
                 <button
                   role="menuitem"
                   onClick={handleLogout}
                   className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left text-[13px] text-soft transition-colors duration-150 hover:bg-danger-dim hover:text-danger"
                 >
                   <LogOutIcon size={15} />
-                  退出登录
+                  {t('logout')}
                 </button>
               </div>
             )}

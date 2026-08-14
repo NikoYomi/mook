@@ -54,7 +54,7 @@ func aiCommand(db *sql.DB, secret string) http.HandlerFunc {
 			return
 		}
 		messages := []ai.Message{
-			{Role: "system", Content: "你是一名资深 Linux 运维工程师。请根据用户需求，给出可以直接在服务器上执行的命令。先输出命令，再简要说明每一步的作用。保持简洁，使用中文回答。"},
+			{Role: "system", Content: "你是一名资深 Linux 运维工程师。请根据用户需求，只输出一条可以直接在服务器上执行的命令，不要任何解释、前后缀或多余文字。若需求无法用单条命令完成，输出用 && 连接的组合命令。"},
 			{Role: "user", Content: req.Prompt},
 		}
 		reply, err := client.Chat(messages)
@@ -110,7 +110,7 @@ func aiAnalyze(db *sql.DB, secret string) http.HandlerFunc {
 			return
 		}
 		messages := []ai.Message{
-			{Role: "system", Content: "你是一名资深 Linux 运维工程师。请分析用户提供的日志或命令输出，找出异常与关键信息，并给出处理建议。使用中文回答，保持简洁。"},
+			{Role: "system", Content: "你是一名资深 Linux 运维工程师。请分析用户提供的服务日志、命令输出或问题描述。请严格按以下模板分节回答，使用中文：\n\n分析原因\n解决办法\n如何执行\n涉及相关命令\n\n要求：分析要准确具体；解决办法给出可操作步骤；如何执行部分给出需要执行的命令并用代码块包裹；如无需执行命令则注明。回答保持简洁，不要输出与模板无关的内容。"},
 			{Role: "user", Content: req.Content},
 		}
 		reply, err := client.Chat(messages)

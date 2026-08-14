@@ -37,8 +37,9 @@ func NewClient(baseURL, apiKey, model string) *Client {
 // Chat 发送对话请求，返回回复文本
 func (c *Client) Chat(messages []Message) (string, error) {
 	body, _ := json.Marshal(map[string]any{
-		"model":    c.Model,
-		"messages": messages,
+		"model":      c.Model,
+		"messages":   messages,
+		"max_tokens": 512,
 	})
 	req, err := http.NewRequest(http.MethodPost, c.BaseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {

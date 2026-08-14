@@ -1,7 +1,7 @@
 {
   "name": "mook-frontend",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,5 +24,8 @@
     "tailwindcss": "^4.0.0",
     "typescript": "~5.6.3",
     "vite": "^6.0.5"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true
   }
 }

@@ -38,6 +38,13 @@ func GetUserByUsername(db *sql.DB, username string) (*User, error) {
 	return scanUser(row)
 }
 
+// GetFirstUser 返回系统中的唯一用户（单密码登录：不校验用户名）
+func GetFirstUser(db *sql.DB) (*User, error) {
+	return scanUser(db.QueryRow(
+		`SELECT id, username, password_hash, created_at FROM users ORDER BY id LIMIT 1`,
+	))
+}
+
 // GetUserByID 按 ID 查询
 func GetUserByID(db *sql.DB, id int64) (*User, error) {
 	row := db.QueryRow(

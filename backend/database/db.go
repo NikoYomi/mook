@@ -55,6 +55,14 @@ func migrate(db *sql.DB) error {
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS common_commands (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			command TEXT NOT NULL,
+			category TEXT NOT NULL DEFAULT '',
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL DEFAULT ''
+		)`,
 	}
 	for _, s := range stmts {
 		if _, err := db.Exec(s); err != nil {

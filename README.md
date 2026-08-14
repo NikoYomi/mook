@@ -1,81 +1,131 @@
-# Mook
+# 🗄️ Mook
 
-> Mook is an AI-powered self-hosted SSH terminal and VPS management tool.
+[![Version](https://img.shields.io/badge/version-v0.2.1-34c759.svg)](https://github.com/NikoYomi/mook)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
+[![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 
-**Mook** 是一个 AI 驱动的自托管 SSH 终端与服务器管理工具：一个 Docker 容器、一个入口，管理你所有服务器。
+> **AI 驱动的自托管 SSH 终端与服务器管理工具。** 一个 Docker 容器、一个入口，管理你所有服务器。
 
-当前版本：**v0.2**（GitHub Actions 自动构建镜像并发布 Release）
+---
 
-## ✨ 功能特性
+## 📖 项目简介
 
-- 🔐 **单密码登录**：首次运行引导设置，bcrypt 哈希存储，5 次失败锁定 15 分钟
-- 🖥️ **Web SSH 终端**：xterm.js，多标签并行会话、断线检测、自动重连、回车历史保留
-- 📊 **服务器监控面板**：实时延迟 / CPU / 内存 / 硬盘 / 下行 / 上行（2 秒轮询）
+Mook 是一个**自托管、单容器**的服务器运维工作台：把 Web SSH 终端、服务器监控、SFTP 文件管理和 AI 辅助融为一体，部署后只需一个网页入口即可集中管理所有 VPS。
+
+- **一次部署，随处管理**：Docker 单容器启动，端口 `5866`，数据持久化于 `/data`（SQLite）
+- **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
+- **AI 写在骨子里**：对接 OpenAI 兼容接口，自动获取模型，回答按「原因 / 解法 / 执行 / 命令」四段模板输出
+
+**当前版本：v0.2.1** —— 主题系统、中英双语、终端体验与监控采集全面打磨（见 [更新日志](#-更新日志)）。
+
+---
+
+## 📸 项目截图
+
+截图保存在 `docs/` 目录。
+
+<p align="center">
+  <img src="docs/截图.png" alt="Mook 界面截图" width="88%" />
+</p>
+
+---
+
+## ✨ 核心功能
+
+- 🔐 **单密码登录**：首次运行引导设置，bcrypt 哈希存储；5 次失败锁定 15 分钟
+- 🖥️ **Web SSH 终端**：xterm.js，多标签并行会话、断线检测与自动重连、回显行自动标绿、`Ctrl+Shift+C` 复制、背景纹理轮动与自定义上传
+- 📊 **服务器监控面板**：实时延迟 / CPU / 内存 / 硬盘 使用率（3 秒轮询，兼容无 `awk` 的精简系统）
 - 📁 **SFTP 文件管理**：浏览 / 上传 / 下载 / 新建目录 / 重命名 / 删除
 - 🏷️ **服务器管理**：增删改、密码 / 私钥认证、一键复制 IP、上次连接时间
-- 🤖 **AI 助手**：OpenAI 兼容接口（DeepSeek / OpenAI / Gemini / Kimi / 智谱 / Ollama / 自定义），自动获取模型，支持命令生成与日志分析
+- 🤖 **AI 助手**：OpenAI 兼容接口（DeepSeek / OpenAI / Gemini / Kimi / 智谱 / Ollama / 自定义厂商），自动获取模型，严格按四段模板回答
 - 💾 **备份与还原**：一键导出 / 导入全部服务器、AI 设置与常用命令
-- 🐳 **单容器 Docker 部署**：端口 **5866**，数据持久化到 `/data`
+- 🎨 **主题与多语言**：亮色 / 暗色 / 跟随系统三态主题，中 / 英界面切换
+- 🐳 **单容器 Docker 部署**：端口 **5866**，数据持久化到 `/data`，支持 amd64 / arm64
 
-## 📥 快速开始（Docker）
+---
+
+## 🛠️ 技术栈
+
+| 端     | 技术 |
+| ------ | --- |
+| 前端   | React 18 · TypeScript · Vite · Tailwind CSS 4 · xterm.js 5 · Zustand · react-router |
+| 后端   | Go · 标准库 net/http · gorilla/websocket · golang.org/x/crypto（SSH）· pkg/sftp · modernc.org/sqlite（纯 Go 驱动） |
+| 存储   | SQLite（单文件，随数据卷持久化） |
+| 部署   | Docker 多阶段构建 · GitHub Actions 多平台镜像（amd64 / arm64）· GHCR / Docker Hub |
+
+---
+
+## 🐳 Docker 部署
+
+### 前置要求
+
+Docker 20.10+，支持 Linux / macOS / Windows（WSL2）。
+
+### 方式一：使用发布镜像（推荐，免本机构建）
+
+打 `v*` Tag 时由 GitHub Actions 自动构建并推送镜像（tag 含 `0.2.1` / `latest`，双平台）：
+
+- **GHCR**：`ghcr.io/nikoyomi/mook`
+- **Docker Hub**：`nikoyomi/mook`
+
+新建 `docker-compose.yml`：
+
+```yaml
+services:
+  mook:
+    image: ghcr.io/nikoyomi/mook:0.2.1   # 固定版本；升级时改为新版本号或 latest
+    container_name: mook
+    ports:
+      - "5866:5866"        # 「宿主机端口 : 容器端口」
+    volumes:
+      - mook-data:/data    # 数据卷：SQLite 数据库与加密密钥均存于此
+    environment:
+      - MOOK_PORT=5866               # 与上方容器端口保持一致
+      - MOOK_DATA=/data              # 数据目录（对应数据卷挂载点）
+      # - MOOK_PASSWORD=你的密码      # 可选：预设初始管理员密码（不设则网页引导）
+    restart: unless-stopped
+
+volumes:
+  mook-data:               # 具名数据卷，compose down 不会删除数据
+```
+
+### 方式二：本地源码构建
+
+仓库自带 `docker/Dockerfile` 与 `docker/docker-compose.yml`（三段式构建；可用环境变量覆盖镜像源，见下文「国内网络」），在项目 `docker/` 目录下：
 
 ```bash
-cd docker
 docker compose up -d --build
 ```
 
-访问：
+访问 `http://localhost:5866`，首次进入会引导设置管理员密码。
 
-```text
-http://localhost:5866
-```
-
-首次访问会引导设置管理员密码，也可用环境变量预设：
-
-```yaml
-# docker/docker-compose.yml
-environment:
-  - MOOK_PASSWORD=你的密码   # 可选，预设初始管理员密码
-```
-
-> 若需使用发布版镜像（免本机构建），可拉取 GitHub Actions 构建产物，见下文「镜像与发布」。
-
-## 🚀 镜像与发布
-
-本项目使用 GitHub Actions 在打 tag 时自动构建镜像并创建 Release：
-
-- **镜像**：`ghcr.io/nikoyomi/mook`（以 `v0.2`、`0.2`、`latest` 等 tag 标记）
-- **Release**：每次推送 `v*` tag 自动生成（含更新日志，取自 README「更新日志」一节的对应版本）
+### 常用命令
 
 ```bash
-docker pull ghcr.io/nikoyomi/mook:v0.2
+docker compose up -d                 # 启动
+docker compose logs -f mook          # 查看日志
+docker compose down                  # 停止（保留数据）
+docker compose down -v               # 停止并删除数据卷（慎用）
+docker compose pull && docker compose up -d   # 升级到新版本
 ```
 
-构建流程见 `.github/workflows/docker-build.yml`：Checkout → Buildx → 登录 GHCR →
-`docker build-push`（多平台 amd64/arm64，GitHub Actions 缓存）→ 打 tag 时创建 Release。
+> HTTPS：建议通过 Caddy / Nginx 反向代理启用，生产环境勿将 5866 直接暴露公网。
 
-> 镜像可见性：GHCR 包默认**私有**。若希望被公开检索/拉取，请在 GitHub
-> 仓库页面 **Packages → mook → Package settings → Change visibility → Public**。
-> Docker Hub 镜像见「一键构建」产物，可自行 `docker push` 到你的账号。
+### 🐳 国内网络构建排查
 
-## 🐳 Docker 构建失败排查（国内网络）
-
-`docker compose up -d --build` 需要联网下载三类东西，任一失败都会中断构建：
+`docker compose up -d --build` 需要联网下载三类依赖，任一失败都会中断：
 
 | 依赖 | 默认地址 | 失败现象 |
 | --- | --- | --- |
-| Docker 基础镜像 | Docker Hub（可被 daemon 镜像加速器改写） | `failed to resolve source metadata for docker.io/library/...: 401 Unauthorized` |
-| Go 模块 | `https://goproxy.cn,direct`（本项目默认） | `proxy.golang.org ... dial tcp ... i/o timeout` |
-| npm 包 | `https://registry.npmmirror.com`（本项目默认） | npm 下载超时 / ECONNRESET |
+| Docker 基础镜像 | Docker Hub（受 daemon 加速器改写） | `failed to resolve source metadata for docker.io/library/...` |
+| Go 模块 | `https://goproxy.cn,direct`（项目默认） | `proxy.golang.org ... i/o timeout` |
+| npm 包 | `https://registry.npmmirror.com`（项目默认） | npm 超时 / `ECONNRESET` |
 
-常见问题与解决办法：
+排查要点：
 
-1. **基础镜像拉取失败**：多为 Docker 守护进程配置了失效或需认证的镜像加速器（例如 `docker.fnnas.com` 返回 401）。
-   - 删除或更换 `registry-mirrors` 后重启 Docker（Windows Docker Desktop：Settings → Docker Engine；Linux：编辑 `/etc/docker/daemon.json`）。
-   - 使用自建镜像站时，可用 `MOOK_REGISTRY` 直接指定前缀。
-   - 用 `docker pull alpine:3.24` 验证加速器是否生效。
-2. **Go 模块下载超时**：本项目默认已用 `https://goproxy.cn,direct`；如仍失败可换成 `https://goproxy.io,direct` 等。
-3. **npm 下载超时**：本项目默认已用 `https://registry.npmmirror.com`。
+1. **基础镜像拉取失败**：多为配置了失效 / 需认证的镜像加速器，删除或更换 `registry-mirrors` 后重启 Docker（Windows Docker Desktop：Settings → Docker Engine；Linux：编辑 `/etc/docker/daemon.json`）。可用 `docker pull alpine:3.24` 验证。
+2. **Go / npm 下载超时**：项目默认已走国内源，仍失败可换 `https://goproxy.io,direct` 等。
 
 一键构建（全部走国内可达源，在 `docker/` 目录下）：
 
@@ -93,9 +143,11 @@ $env:MOOK_GOPROXY="https://goproxy.cn,direct"
 docker compose up -d --build
 ```
 
-> 注意：`MOOK_REGISTRY` 只影响 Docker 基础镜像；Go 模块和 npm 分别由 `MOOK_GOPROXY`、`MOOK_NPM_REGISTRY` 控制，**Docker 镜像加速站无法替代 Go / npm 代理**。
+> `MOOK_REGISTRY` 只影响 Docker 基础镜像；Go 模块与 npm 分别由 `MOOK_GOPROXY`、`MOOK_NPM_REGISTRY` 控制，**镜像加速站无法替代 Go / npm 代理**。
 
-## 💻 本地开发
+---
+
+## 💻 本地开发（免 Docker）
 
 环境要求：Node 20+、Go 1.23+。
 
@@ -103,7 +155,7 @@ docker compose up -d --build
 # 终端 1：后端（端口 5866）
 cd backend
 go mod tidy
-go run .
+MOOK_DATA=./data go run .        # 可另设 MOOK_DATA 指定数据目录
 
 # 终端 2：前端（Vite 开发服务器，代理到 5866）
 cd frontend
@@ -111,77 +163,92 @@ npm install
 npm run dev
 ```
 
-访问 `http://localhost:5173`。
+前端访问 `http://localhost:5173`（`npm run build` 即 `tsc --noEmit && vite build`）。
 
-## 🔨 一键构建
+一键构建发布包：
 
 ```bash
-# Linux / macOS
-./scripts/build.sh
-
-# Windows
-.\scripts\build.ps1
+./scripts/build.sh      # Linux / macOS
+.\scripts\build.ps1     # Windows
 ```
 
-构建完成后，前端产物在 `frontend/dist`，后端单文件在 `backend/mook`（Windows 为 `mook.exe`）。
+构建后前端产物在 `frontend/dist`，后端单文件在 `backend/mook`（Windows 为 `mook.exe`）。
 
-## ⚙️ 环境变量
-
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| MOOK_PORT | 5866 | HTTP 服务端口 |
-| MOOK_DATA | ./data | 数据目录（SQLite 与密钥） |
-| MOOK_DIST | ./dist | 前端静态资源目录 |
-| MOOK_PASSWORD | 空 | 可选：预设初始管理员密码 |
-| MOOK_SECRET | 自动生成 | 可选：凭据加密密钥 |
-
-## 🤖 AI 配置
-
-在「设置」页填写（支持 DeepSeek、OpenAI、Gemini、Kimi、智谱、Ollama、自定义厂商）：
-
-- **选择厂商**下拉选择，或选「自定义」并填写厂商名与接口地址
-- **API Key**：填写后自动获取该密钥支持的模型
-- **模型**：下拉选择获取到的模型，或切换为手动输入
-
-未配置 API Key 时，AI 功能不可用，但不影响 SSH 使用。
-
-## 📁 项目结构
+目录结构：
 
 ```text
 mook/
-├── backend/     # Go 后端（API / 认证 / SSH / WebSocket / SFTP / AI / SQLite）
-│   ├── api/         # HTTP 路由与处理
-│   ├── ssh/         # SSH 终端会话与 SFTP
-│   ├── websocket/   # 终端 WebSocket 桥接
-│   ├── ai/          # OpenAI 兼容 AI 调用
-│   ├── auth/        # 登录 / 会话 / 限流
-│   └── database/    # SQLite 持久化（含增量迁移）
-├── frontend/    # React + TypeScript + Tailwind + xterm.js
-├── docker/      # Dockerfile 与 docker-compose
-├── docs/        # 文档（API 一览）
-├── scripts/     # 构建脚本
-└── 改动.md       # 开发变更记录（时间 · 目的 · 关键代码）
+├── backend/        # Go 后端（API / 认证 / SSH / WebSocket / SFTP / AI / SQLite）
+│   ├── api/            # HTTP 路由与处理
+│   ├── ssh/            # SSH 终端会话与 SFTP
+│   ├── websocket/      # 终端 WebSocket 桥接
+│   ├── ai/             # OpenAI 兼容 AI 调用
+│   ├── auth/           # 登录 / 会话 / 限流
+│   └── database/       # SQLite 持久化（含增量迁移）
+├── frontend/       # React + TypeScript + Tailwind + xterm.js
+├── docker/         # Dockerfile 与 docker-compose
+├── docs/           # 文档（API 一览）
+└── scripts/        # 构建脚本
 ```
 
-## 🔒 安全说明
+---
+
+## ⚙️ 环境配置
+
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MOOK_PORT` | `5866` | HTTP 服务端口 |
+| `MOOK_DATA` | `./data` | 数据目录（SQLite 与密钥） |
+| `MOOK_DIST` | `./dist` | 前端静态资源目录 |
+| `MOOK_PASSWORD` | 空 | 可选：预设初始管理员密码 |
+| `MOOK_SECRET` | 自动生成 | 可选：凭据加密密钥 |
+
+### 🤖 AI 配置
+
+在「设置 → AI 助手」页填写（支持 DeepSeek、OpenAI、Gemini、Kimi、智谱、Ollama 及自定义厂商）：
+
+- **选择厂商**：下拉选择，或选「自定义」填写厂商名与接口地址
+- **API Key**：填写后自动获取该密钥支持的模型
+- **模型**：下拉选择获取到的模型，或切换为手动输入
+
+未配置 API Key 时 AI 功能不可用，不影响 SSH 使用。
+
+### 🔒 安全说明
 
 - 密码使用 bcrypt 哈希；SSH 密码、私钥、AI Key 均加密存储
-- 登录有次数限制（5 次失败锁定 15 分钟）
-- 会话有效期 7 天
+- 登录限流：5 次失败锁定 15 分钟（重启容器可重置）；会话有效期 6 小时
 - 建议通过 Caddy / Nginx 反向代理启用 HTTPS
-- v0.2 暂不校验 SSH 主机指纹（known_hosts），后续版本完善
+- v0.2.x 暂不校验 SSH 主机指纹（known_hosts），后续版本完善
 
-## 🗺️ 路线图
+---
 
-- v0.1：基础 SSH + AI
-- v0.2：监控面板 + SFTP 文件管理 + 多标签会话 + AI 自动获取模型（当前）
-- v0.5：文件管理增强 + Docker 可视化管理
-- v1.0：Agent + Relay 中转同步
-- v2.0：AI DevOps 助手
+## 🗺️ 开发路线
+
+- ✅ v0.1 —— 基础 SSH 终端 + AI 助手
+- ✅ v0.2 —— 监控面板 + SFTP 文件管理 + 多标签会话 + AI 自动获取模型 + CI/CD 发布
+- 🔄 v0.2.1 —— 主题系统 / 中英双语 / 终端体验与监控采集打磨（当前）
+- ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
+- ⏳ v1.0 —— Agent + Relay 中转同步
+- ⏳ v2.0 —— AI DevOps 助手
+
+---
 
 ## 📄 更新日志
 
-### v0.2
+### v0.2.1
+
+- **主题系统**：亮色 / 暗色 / 跟随系统三态切换（Apple 极简多级白色阶、柔和阴影、首屏防闪烁）
+- **界面语言**：中 / 英切换（覆盖主要按钮与导航）
+- **设置页重构**：新增「通用设置」Tab（账户安全 / 外观 / 终端背景）；「备份与还原」更名「数据管理」，导出 / 导入按钮加大
+- **终端体验**：回显行可靠标绿、`Ctrl/Cmd+Shift+C` 复制选中内容、背景纹理轮动与上传自定义背景、点击常用命令后焦点回到终端
+- **常用命令**：默认改为 Docker / docker-compose 常用命令（旧数据自动迁移）
+- **服务器监控**：移除网络速度监控（高延迟下恒为 0，无实际价值）；采集脚本移除 `awk` 依赖（兼容 Oracle 云 arm64 等精简系统）；轮询改为串行 3 秒，避免高延迟下请求重叠响应乱序
+- **会话与安全**：登录会话有效期调整为 6 小时；登录改为纯密码模式（不再区分用户名）
+- **UI 细节**：空状态小窗口溢出修复、语义色彩 token 统一、下拉菜单与账户按钮同宽、Servers 页页脚
+
+### v0.2.0
 
 - 服务器信息面板：实时延迟 / CPU / 内存 / 硬盘 / 上下行速率，2 秒轮询
 - SFTP 文件管理：浏览 / 上传 / 下载 / 新建 / 重命名 / 删除
@@ -190,9 +257,9 @@ mook/
 - AI 设置重构：厂商下拉 / API Key 自动获取模型 / 获取成功才显示保存
 - 终端输出着色：错误行红色、提示符 / 用户输入行绿色；无换行提示符立即可见
 - 服务器卡片网格最多 5 列；设置弹窗多轮布局与交互优化
-- CI/CD：GitHub Actions 自动构建 GHCR 镜像并创建 Release
+- CI/CD：GitHub Actions 自动构建 GHCR / Docker Hub 镜像并创建 Release
 
-### v0.1
+### v0.1.0
 
 - 单密码登录（首次运行引导）
 - Web SSH 终端（xterm.js）
@@ -201,7 +268,15 @@ mook/
 - 备份与还原
 - 单容器 Docker 部署
 
+---
+
+## 📄 License
+
+[MIT](LICENSE) © 2026 NikoYomi
+
+---
+
 ## 📚 文档
 
 - [API 一览](docs/API.md)
-- 开发变更记录见根目录 `改动.md`
+- 开发变更记录保存在本地工作区「计划」文件夹（不随仓库发布）

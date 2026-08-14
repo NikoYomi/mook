@@ -13,8 +13,8 @@ import (
 const (
 	// CookieName 会话 Cookie 名称
 	CookieName = "mook_session"
-	// SessionTTL 会话有效期（7 天）
-	SessionTTL = 7 * 24 * time.Hour
+	// SessionTTL 会话有效期（6 小时）
+	SessionTTL = 6 * time.Hour
 )
 
 type ctxKey struct{}

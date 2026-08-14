@@ -267,7 +267,7 @@ function CommandFormModal({
         </label>
 
         {aiError && (
-          <div className="break-all rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] text-amber-300">
+          <div className="break-all rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] text-warn">
             {aiError}
           </div>
         )}
@@ -292,7 +292,7 @@ function CommandFormModal({
           />
         </label>
         {error && (
-          <div className="rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-xs text-red-300">
+          <div className="rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-xs text-danger">
             {error}
           </div>
         )}

@@ -4,9 +4,11 @@ import Modal from '../components/Modal'
 import ServerForm from '../components/ServerForm'
 import type { Server, ServerInput } from '../api/client'
 import { useServers } from '../store/servers'
+import { useI18n } from '../utils/i18n'
 import { formatDateTime } from '../utils/command'
 import {
   AlertIcon,
+  GithubIcon,
   HistoryIcon,
   KeyIcon,
   LockIcon,
@@ -19,6 +21,7 @@ import {
 } from '../components/icons'
 
 export default function Servers() {
+  const t = useI18n()
   const { servers, loading, load, create, update, remove } = useServers()
   const [query, setQuery] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -71,7 +74,7 @@ export default function Servers() {
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-panel/40 px-5 py-3.5">
         <div className="flex items-center gap-2.5">
-          <h1 className="text-[15px] font-semibold text-ink">服务器</h1>
+          <h1 className="text-[15px] font-semibold text-ink">{t('servers')}</h1>
           <span className="rounded-full border border-line bg-panel-2 px-2 py-0.5 text-[11px] text-soft">
             {servers.length} 台
           </span>
@@ -97,13 +100,13 @@ export default function Servers() {
               setFormOpen(true)
             }}
           >
-            <PlusIcon size={15} /> 添加服务器
+            <PlusIcon size={15} /> {t('addServer')}
           </button>
         </div>
       </div>
 
       {error && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-danger/20 bg-danger-dim px-5 py-2 text-[13px] text-red-300">
+        <div className="flex shrink-0 items-center gap-2 border-b border-danger/20 bg-danger-dim px-5 py-2 text-[13px] text-danger">
           <AlertIcon size={14} className="shrink-0 text-danger" />
           {error}
         </div>
@@ -113,12 +116,12 @@ export default function Servers() {
         {loading ? (
           <div className="flex h-full items-center justify-center text-sm text-soft">加载中…</div>
         ) : filtered.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-line-strong bg-panel/40 px-10 py-12 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-line bg-panel-2 text-faint">
+          <div className="flex h-full items-center justify-center overflow-y-auto p-4">
+            <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-2xl border border-dashed border-line-strong bg-panel/40 px-6 py-10 text-center sm:px-10 sm:py-12">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-line bg-panel-2 text-faint">
                 <ServerIcon size={26} />
               </span>
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-ink">
                   {servers.length === 0 ? '还没有服务器' : '没有匹配的服务器'}
                 </p>
@@ -130,13 +133,13 @@ export default function Servers() {
               </div>
               {servers.length === 0 && (
                 <button
-                  className="btn-primary"
+                  className="btn-primary shrink-0"
                   onClick={() => {
                     setEditing(undefined)
                     setFormOpen(true)
                   }}
                 >
-                  <PlusIcon size={15} /> 添加服务器
+                  <PlusIcon size={15} /> {t('addServer')}
                 </button>
               )}
             </div>
@@ -197,9 +200,8 @@ export default function Servers() {
                     className="btn-primary flex-1"
                     onClick={() => navigate(`/terminal/${s.id}`)}
                   >
-                    <TerminalIcon size={14} /> 连接
-                  </button>
-                  <button
+                    <TerminalIcon size={14} /> {t('connect')}
+                  </button>                  <button
                     className="btn-ghost px-2.5"
                     onClick={() => {
                       setEditing(s)
@@ -224,6 +226,30 @@ export default function Servers() {
           </div>
         )}
       </div>
+
+      <footer className="flex shrink-0 items-center justify-center gap-1.5 border-t border-line px-5 py-2.5 text-[11px] text-faint">
+        <span>© 2026</span>
+        <a
+          href="https://github.com/NikoYomi"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="NikoYomi 主页"
+          className="transition-colors duration-150 hover:text-ink"
+        >
+          NikoYomi
+        </a>
+        <span>· Built with AI assistance ·</span>
+        <a
+          href="https://github.com/NikoYomi/mook"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Mook 开源项目地址"
+          className="flex items-center text-soft transition-colors duration-150 hover:text-ink"
+        >
+          <GithubIcon size={13} />
+        </a>
+        <span>v0.2.1</span>
+      </footer>
 
       <Modal
         open={formOpen}
