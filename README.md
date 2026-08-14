@@ -92,7 +92,7 @@ volumes:
 
 ### 方式二：本地源码构建
 
-仓库自带 `docker/Dockerfile` 与 `docker/docker-compose.yml`（三段式构建；可用环境变量覆盖镜像源，见下文「国内网络」），在项目 `docker/` 目录下：
+仓库自带 `docker/Dockerfile` 与 `docker/docker-compose.yml`（三段式构建），在项目 `docker/` 目录下：
 
 ```bash
 docker compose up -d --build
@@ -112,38 +112,26 @@ docker compose pull && docker compose up -d   # 升级到新版本
 
 > HTTPS：建议通过 Caddy / Nginx 反向代理启用，生产环境勿将 5866 直接暴露公网。
 
-### 🐳 国内网络构建排查
+### 🌐 网络与构建源
 
-`docker compose up -d --build` 需要联网下载三类依赖，任一失败都会中断：
+默认使用 GitHub 官方 / 原生源构建，GitHub Actions 环境下无需任何镜像即可完成构建：
 
-| 依赖 | 默认地址 | 失败现象 |
-| --- | --- | --- |
-| Docker 基础镜像 | Docker Hub（受 daemon 加速器改写） | `failed to resolve source metadata for docker.io/library/...` |
-| Go 模块 | `https://goproxy.cn,direct`（项目默认） | `proxy.golang.org ... i/o timeout` |
-| npm 包 | `https://registry.npmmirror.com`（项目默认） | npm 超时 / `ECONNRESET` |
+| 依赖 | 默认源 |
+| --- | --- |
+| Docker 基础镜像 | `docker.io/library` |
+| Go 模块 | `https://proxy.golang.org,direct` |
+| npm 包 | `https://registry.npmjs.org` |
 
-排查要点：
-
-1. **基础镜像拉取失败**：多为配置了失效 / 需认证的镜像加速器，删除或更换 `registry-mirrors` 后重启 Docker（Windows Docker Desktop：Settings → Docker Engine；Linux：编辑 `/etc/docker/daemon.json`）。可用 `docker pull alpine:3.24` 验证。
-2. **Go / npm 下载超时**：项目默认已走国内源，仍失败可换 `https://goproxy.io,direct` 等。
-
-一键构建（全部走国内可达源，在 `docker/` 目录下）：
+国内网络环境下，可通过环境变量覆盖为国内源（`BASE_IMAGE` / `NPM_REGISTRY` / `GOPROXY` 三个构建参数，或 compose 的 `MOOK_REGISTRY` / `MOOK_NPM_REGISTRY` / `MOOK_GOPROXY`）：
 
 ```bash
-# Linux / macOS
-MOOK_REGISTRY=dockercat.snty.de/library \
+MOOK_REGISTRY=<国内 Docker 镜像仓库>/library \
 MOOK_NPM_REGISTRY=https://registry.npmmirror.com \
 MOOK_GOPROXY=https://goproxy.cn,direct \
 docker compose up -d --build
-
-# Windows PowerShell
-$env:MOOK_REGISTRY="dockercat.snty.de/library"
-$env:MOOK_NPM_REGISTRY="https://registry.npmmirror.com"
-$env:MOOK_GOPROXY="https://goproxy.cn,direct"
-docker compose up -d --build
 ```
 
-> `MOOK_REGISTRY` 只影响 Docker 基础镜像；Go 模块与 npm 分别由 `MOOK_GOPROXY`、`MOOK_NPM_REGISTRY` 控制，**镜像加速站无法替代 Go / npm 代理**。
+> `MOOK_REGISTRY` 只影响 Docker 基础镜像；Go 模块与 npm 分别由 `MOOK_GOPROXY`、`MOOK_NPM_REGISTRY` 控制。
 
 ---
 

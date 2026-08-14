@@ -1,9 +1,10 @@
 # ---------- 构建参数：可用 compose 环境变量或 --build-arg 覆盖 ----------
-# 国内拉取基础镜像失败（401 / 超时）时，把 BASE_IMAGE 指向可用的镜像源，例如：
-#   docker.m.daocloud.io/library、docker.1ms.run/library
+# GitHub Actions 环境已能直连原生源，默认无需任何镜像。
+# 国内网络构建时可覆盖为国内源（BASE_IMAGE / NPM_REGISTRY / GOPROXY），
+# 备份见「项目中转文件\备份国内构建」。
 ARG BASE_IMAGE=docker.io/library
-ARG NPM_REGISTRY=https://registry.npmmirror.com
-ARG GOPROXY=https://goproxy.cn,direct
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ARG GOPROXY=https://proxy.golang.org,direct
 
 # ---------- 阶段 1：构建前端 ----------
 FROM ${BASE_IMAGE}/node:26.7-alpine AS frontend

@@ -4,10 +4,11 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       args:
-        # 国内网络拉取基础镜像失败时，用环境变量覆盖镜像源（见 README）
+        # 默认使用官方源（适合 GitHub Actions / 海外环境）；
+        # 国内网络可通过 MOOK_REGISTRY / MOOK_NPM_REGISTRY / MOOK_GOPROXY 覆盖为国内镜像
         BASE_IMAGE: ${MOOK_REGISTRY:-docker.io/library}
-        NPM_REGISTRY: ${MOOK_NPM_REGISTRY:-https://registry.npmmirror.com}
-        GOPROXY: ${MOOK_GOPROXY:-https://goproxy.cn,direct}
+        NPM_REGISTRY: ${MOOK_NPM_REGISTRY:-https://registry.npmjs.org}
+        GOPROXY: ${MOOK_GOPROXY:-https://proxy.golang.org,direct}
     image: mook/mook:0.2.1
     container_name: mook
     ports:
