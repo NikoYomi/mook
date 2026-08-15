@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.2.5-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.2.6-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.2.5** 
+**当前版本：v0.2.6** 
 
 > 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
@@ -224,7 +224,7 @@ mook/
 - ✅ v0.2.2 —— 服务器拖拽排序 / 常用命令使用计数与置顶 / 请求日志
 - ✅ v0.2.3 —— Docker Hub 双源发布 / 按钮提示 / 终端页脚与内边距
 - ✅ v0.2.4 —— 登录页品牌 / 下拉宽度修正 / 新增终端背景
-- ✅ v0.2.5 —— AI 密钥按厂商隔离 / 备份口令加密 / 新终端背景 / 聚焦样式细化（当前）
+- ✅ v0.2.6 —— 备份跨环境还原修复（凭据随备份重加密）/ 提示改悬浮 Toast（当前）
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
 - ⏳ v2.0 —— AI DevOps 助手
@@ -232,6 +232,12 @@ mook/
 ---
 
 ## 📄 更新日志
+
+### v0.2.6
+
+- **备份还原修复**：修复还原备份后服务器密码 / AI 密钥丢失的问题——备份导出时凭据解密为明文放入加密包，还原时用当前服务端密钥重新加密，备份可在任意环境 / 任意密钥下还原
+- **提示改悬浮 Toast**：登录错误、SSH 连接失败、服务器保存 / 删除 / 排序、设置保存等所有内联提示统一改为顶部悬浮 Toast（2 秒自动消失），不再占用布局空间
+- **弹窗框选保护规范化**：提取共享 `isDragSelectingInside()`，所有含输入框的弹窗遮罩关闭带框选保护，避免选中文字拖出误关弹窗
 
 ### v0.2.5
 

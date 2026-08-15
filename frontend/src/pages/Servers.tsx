@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import Modal from '../components/Modal'
 import ServerForm from '../components/ServerForm'
@@ -8,6 +9,7 @@ import { useI18n } from '../utils/i18n'
 import { formatDateTime } from '../utils/command'
 import {
   AlertIcon,
+  CheckCircleIcon,
   GithubIcon,
   GripVerticalIcon,
   HistoryIcon,
@@ -27,11 +29,18 @@ export default function Servers() {
   const [query, setQuery] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Server | undefined>()
-  const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [dragId, setDragId] = useState<number | null>(null)
   const [overId, setOverId] = useState<number | null>(null)
+  const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const toastTimer = useRef<number | undefined>(undefined)
   const navigate = useNavigate()
+
+  const showToast = (msg: string, type: 'ok' | 'err' = 'ok') => {
+    setToast({ type, msg })
+    window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(null), 2000)
+  }
 
   useEffect(() => {
     load()
@@ -50,15 +59,15 @@ export default function Servers() {
   }, [servers, query])
 
   async function handleSubmit(data: ServerInput) {
-    setError('')
     setBusy(true)
     try {
       if (editing) await update(editing.id, data)
       else await create(data)
       setFormOpen(false)
       setEditing(undefined)
+      showToast('已保存')
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败')
+      showToast(err instanceof Error ? err.message : '保存失败', 'err')
     } finally {
       setBusy(false)
     }
@@ -68,8 +77,9 @@ export default function Servers() {
     if (!window.confirm(`确定删除服务器「${s.name}」吗？`)) return
     try {
       await remove(s.id)
+      showToast('已删除')
     } catch (err) {
-      setError(err instanceof Error ? err.message : '删除失败')
+      showToast(err instanceof Error ? err.message : '删除失败', 'err')
     }
   }
 
@@ -95,8 +105,9 @@ export default function Servers() {
     setOverId(null)
     try {
       await reorder(next)
+      showToast('排序已保存')
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存排序失败')
+      showToast(err instanceof Error ? err.message : '保存排序失败', 'err')
     }
   }
 
@@ -137,13 +148,6 @@ export default function Servers() {
           </button>
         </div>
       </div>
-
-      {error && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-danger/20 bg-danger-dim px-5 py-2 text-[13px] text-danger">
-          <AlertIcon size={14} className="shrink-0 text-danger" />
-          {error}
-        </div>
-      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
         {loading ? (
@@ -318,7 +322,7 @@ export default function Servers() {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.2.5</span>
+        <span>v0.2.6</span>
       </footer>
 
       <Modal
@@ -340,6 +344,27 @@ export default function Servers() {
           }}
         />
       </Modal>
+
+      {toast &&
+        createPortal(
+          <div className="pointer-events-none fixed left-1/2 top-4 z-[80] -translate-x-1/2">
+            <div
+              className={`flex max-w-md items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] shadow-xl shadow-black/40 backdrop-blur ${
+                toast.type === 'ok'
+                  ? 'border-accent/25 bg-panel/95 text-ink'
+                  : 'border-danger/30 bg-danger-dim/95 text-danger'
+              }`}
+            >
+              {toast.type === 'ok' ? (
+                <CheckCircleIcon size={15} className="shrink-0 text-accent" />
+              ) : (
+                <AlertIcon size={15} className="shrink-0 text-danger" />
+              )}
+              <span className="min-w-0 break-all">{toast.msg}</span>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

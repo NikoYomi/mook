@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { XIcon } from './icons'
+import { isDragSelectingInside } from '../utils/selection'
 
 interface Props {
   open: boolean
@@ -24,23 +26,11 @@ export default function Modal({ open, title, description, onClose, children, wid
   // 当框内输入控件存在非空选区、或 DOM 选择非折叠且起点在弹窗内时，
   // 认为是"框选拖拽"，不触发关闭。
   function handleOutsideClick() {
-    if (boxRef.current) {
-      const active = document.activeElement
-      if (active && boxRef.current.contains(active)) {
-        const typedSel =
-          (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) &&
-          active.selectionStart != null &&
-          active.selectionEnd != null &&
-          active.selectionStart !== active.selectionEnd
-        const sel = window.getSelection()
-        const domSelInBox = sel && !sel.isCollapsed && boxRef.current.contains(sel.anchorNode)
-        if (typedSel || domSelInBox) return
-      }
-    }
+    if (isDragSelectingInside(boxRef.current)) return
     onClose()
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       onClick={handleOutsideClick}
@@ -64,6 +54,7 @@ export default function Modal({ open, title, description, onClose, children, wid
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -20,6 +20,9 @@ type Server struct {
 	AuthType        string    `json:"auth_type"` // password | key
 	PasswordEnc     string    `json:"password_enc"` // 加密后的密码
 	PrivateKeyEnc   string    `json:"private_key_enc"` // 加密后的私钥
+	// 明文凭据，仅用于备份导出/还原往返（buildBackup 解密填充、restore 重新加密）；正常 API 不携带
+	Password   string `json:"password,omitempty"`
+	PrivateKey string `json:"private_key,omitempty"`
 	TagsRaw         string    `json:"tags_raw,omitempty"` // 逗号分隔的原始标签
 	Tags            []string  `json:"tags"`
 	CreatedAt       time.Time `json:"created_at"`

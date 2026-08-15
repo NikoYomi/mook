@@ -1,10 +1,12 @@
 import type { FormEvent } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../store/auth'
 import { useI18n } from '../utils/i18n'
 import {
   AlertIcon,
+  CheckCircleIcon,
   EyeIcon,
   EyeOffIcon,
   GithubIcon,
@@ -19,9 +21,16 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [show, setShow] = useState(false)
-  const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const toastTimer = useRef<number | undefined>(undefined)
   const navigate = useNavigate()
+
+  const showToast = (msg: string, type: 'ok' | 'err' = 'ok') => {
+    setToast({ type, msg })
+    window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(null), 2000)
+  }
 
   useEffect(() => {
     if (!user) init()
@@ -33,9 +42,8 @@ export default function Login() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setError('')
     if (setupRequired && password !== confirm) {
-      setError('两次输入的密码不一致')
+      showToast('两次输入的密码不一致', 'err')
       return
     }
     setBusy(true)
@@ -43,7 +51,7 @@ export default function Login() {
       if (setupRequired) await setup(password)
       else await login(password)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '操作失败')
+      showToast(err instanceof Error ? err.message : '操作失败', 'err')
     } finally {
       setBusy(false)
     }
@@ -129,12 +137,29 @@ export default function Login() {
               </label>
             )}
 
-            {error && (
-              <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-danger">
-                <AlertIcon size={14} className="shrink-0 text-danger" />
-                {error}
-              </div>
-            )}
+            {toast &&
+              createPortal(
+                <div
+                  className="pointer-events-none fixed left-1/2 top-4 z-[80] -translate-x-1/2"
+                  role="status"
+                >
+                  <div
+                    className={`flex max-w-md items-center gap-2 rounded-lg border px-3 py-2 text-[13px] shadow-lg ${
+                      toast.type === 'ok'
+                        ? 'border-accent/25 bg-panel text-accent'
+                        : 'border-danger/25 bg-danger-dim text-danger'
+                    }`}
+                  >
+                    {toast.type === 'ok' ? (
+                      <CheckCircleIcon size={14} className="shrink-0" />
+                    ) : (
+                      <AlertIcon size={14} className="shrink-0" />
+                    )}
+                    <span className="min-w-0 break-all">{toast.msg}</span>
+                  </div>
+                </div>,
+                document.body,
+              )}
 
             <button
               type="submit"
@@ -183,7 +208,7 @@ export default function Login() {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.2.5</span>
+        <span>v0.2.6</span>
       </footer>
     </div>
   )

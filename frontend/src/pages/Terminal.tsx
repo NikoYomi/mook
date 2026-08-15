@@ -268,7 +268,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
             </div>
             <div className="min-h-0 flex-1">
               {leftTab === 'info' ? (
-                <ServerInfo serverId={activeServerId} />
+                <ServerInfo serverId={activeServerId} onError={(msg) => showToast(msg, 'err')} />
               ) : (
                 <FileManager serverId={activeServerId} />
               )}
@@ -393,9 +393,9 @@ export default function Terminal({ serverId }: { serverId?: string }) {
 
       {/* Toast */}
       {toast && (
-        <div className="pointer-events-none fixed bottom-5 left-1/2 z-[70] -translate-x-1/2">
+        <div className="pointer-events-none fixed left-1/2 top-4 z-[70] -translate-x-1/2" role="status">
           <div
-            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] shadow-xl shadow-black/40 backdrop-blur ${
+            className={`flex max-w-md items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] shadow-xl shadow-black/40 backdrop-blur ${
               toast.type === 'ok'
                 ? 'border-accent/25 bg-panel/95 text-ink'
                 : 'border-danger/30 bg-danger-dim/95 text-danger'
@@ -406,7 +406,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
             ) : (
               <AlertIcon size={15} className="shrink-0 text-danger" />
             )}
-            <span className="max-w-md truncate">{toast.msg}</span>
+            <span className="min-w-0 break-all">{toast.msg}</span>
           </div>
         </div>
       )}
@@ -433,7 +433,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.2.5</span>
+        <span>v0.2.6</span>
       </footer>
     </div>
   )

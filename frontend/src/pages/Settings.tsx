@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Modal from '../components/Modal'
 import { api, type BackupData, type CustomProviderSetting } from '../api/client'
 import { useAuth } from '../store/auth'
@@ -10,12 +11,15 @@ import { useSettings, type ThemeMode } from '../store/settings'
 import { BACKGROUNDS, CYCLE_ORDER, bgStyle } from '../terminal/backgrounds'
 import { friendlyModelName } from '../utils/command'
 import { useI18n } from '../utils/i18n'
+import { isDragSelectingInside } from '../utils/selection'
 import { AI_PROVIDERS, providerByBaseUrl } from '../utils/aiProviders'
 import {
   AlertIcon,
   CheckCircleIcon,
   DatabaseIcon,
   DownloadIcon,
+  EyeIcon,
+  EyeOffIcon,
   GithubIcon,
   KeyIcon,
   LayersIcon,
@@ -62,9 +66,6 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsMsg, setModelsMsg] = useState('')
   const [modelsOk, setModelsOk] = useState(false)
-  const [saved, setSaved] = useState('')
-  const [validateError, setValidateError] = useState('')
-  const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
   // 账户
@@ -75,24 +76,33 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [accountBusy, setAccountBusy] = useState(false)
-  const [accountMsg, setAccountMsg] = useState('')
-  const [accountError, setAccountError] = useState('')
   const [pwdVerified, setPwdVerified] = useState(false)
   const [verifyBusy, setVerifyBusy] = useState(false)
+  const [showOldPwd, setShowOldPwd] = useState(false)
+  const [showNewPwd, setShowNewPwd] = useState(false)
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false)
   // 修改登录密码弹窗
   const [pwdChangeOpen, setPwdChangeOpen] = useState(false)
+  const pwdBoxRef = useRef<HTMLDivElement>(null)
+
+  // 悬浮提示（2 秒自动消失），替代内联成功/错误提示
+  const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const toastTimer = useRef<number | undefined>(undefined)
+  const showToast = (msg: string, type: 'ok' | 'err' = 'ok') => {
+    setToast({ type, msg })
+    window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(null), 2000)
+  }
 
   // 备份
   const importRef = useRef<HTMLInputElement>(null)
   const [backupBusy, setBackupBusy] = useState(false)
-  const [backupMsg, setBackupMsg] = useState('')
-  const [backupError, setBackupError] = useState('')
   // 备份密码弹窗：export=导出，import=导入
   const [pwdModal, setPwdModal] = useState<'export' | 'import' | null>(null)
   const [pwd, setPwd] = useState('')
   const [pwdConfirm, setPwdConfirm] = useState('')
-  const [pwdError, setPwdError] = useState('')
   const [pwdBusy, setPwdBusy] = useState(false)
+  const pwdModalRef = useRef<HTMLDivElement>(null)
   const [pendingImportData, setPendingImportData] = useState<string | null>(null)
 
   const replaceCommands = useCommands((s) => s.replace)
@@ -127,16 +137,11 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       setOldPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      setAccountMsg('')
-      setAccountError('')
     }
   }, [open, initialTab])
 
   useEffect(() => {
     if (!open) return
-    setError('')
-    setSaved('')
-    setValidateError('')
     api
       .getAiSettings()
       .then((s) => {
@@ -160,7 +165,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
           setModelManual(true)
         }
       })
-      .catch((err) => setError(err instanceof Error ? err.message : '读取设置失败'))
+      .catch((err) => showToast(err instanceof Error ? err.message : '读取设置失败', 'err'))
   }, [open])
 
   useEffect(() => {
@@ -254,9 +259,6 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setError('')
-    setSaved('')
-    setValidateError('')
     setBusy(true)
     try {
       const providerIdToSave = providerId.startsWith('custom:') ? 'custom' : providerId
@@ -272,7 +274,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       setApiKey('')
       setValidated(res.validated)
       if (res.validated) {
-        setSaved('设置已保存，密钥验证通过')
+        showToast('设置已保存，密钥验证通过')
         if (apiKey.trim()) {
           setProviderKeys((prev) => ({ ...prev, [normalizeBaseUrl(baseUrl)]: true }))
         }
@@ -284,17 +286,17 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
           setProviderId(`custom:${customNameToSave}`)
         }
       } else {
-        setSaved('设置已保存')
         const noKey = !hasKey && !apiKey.trim()
-        setValidateError(
+        showToast(
           noKey
             ? '尚未配置 API Key，请填写后保存以启用 AI'
             : res.error || '密钥未通过验证，请检查 API Key / 接口地址 / 模型',
+          'err',
         )
       }
       await refreshAi()
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败')
+      showToast(err instanceof Error ? err.message : '保存失败', 'err')
     } finally {
       setBusy(false)
     }
@@ -302,20 +304,18 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
 
   async function handleUsername(e: FormEvent) {
     e.preventDefault()
-    setAccountMsg('')
-    setAccountError('')
     const name = username.trim()
     if (!name) {
-      setAccountError('用户名不能为空')
+      showToast('用户名不能为空', 'err')
       return
     }
     setAccountBusy(true)
     try {
       const res = await api.changeUsername(name)
       setUsername(res.username)
-      setAccountMsg('用户名已更新，下次登录请使用新用户名')
+      showToast('用户名已更新，下次登录请使用新用户名')
     } catch (err) {
-      setAccountError(err instanceof Error ? err.message : '修改失败')
+      showToast(err instanceof Error ? err.message : '修改失败', 'err')
     } finally {
       setAccountBusy(false)
     }
@@ -323,14 +323,12 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
 
   async function handlePassword(e: FormEvent) {
     e.preventDefault()
-    setAccountMsg('')
-    setAccountError('')
     if (newPassword.length < 6) {
-      setAccountError('新密码至少 6 位')
+      showToast('新密码至少 6 位', 'err')
       return
     }
     if (newPassword !== confirmPassword) {
-      setAccountError('两次输入的新密码不一致')
+      showToast('两次输入的新密码不一致', 'err')
       return
     }
     setAccountBusy(true)
@@ -339,10 +337,10 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       setOldPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      setAccountMsg('密码已更新')
+      showToast('密码已更新')
       setPwdChangeOpen(false)
     } catch (err) {
-      setAccountError(err instanceof Error ? err.message : '修改失败')
+      showToast(err instanceof Error ? err.message : '修改失败', 'err')
     } finally {
       setAccountBusy(false)
     }
@@ -350,26 +348,22 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
 
   async function handleVerify(e: FormEvent) {
     e.preventDefault()
-    setAccountMsg('')
-    setAccountError('')
     if (!oldPassword) {
-      setAccountError('请输入当前密码')
+      showToast('请输入当前密码', 'err')
       return
     }
     setVerifyBusy(true)
     try {
       await api.verifyPassword(oldPassword)
       setPwdVerified(true)
-      setAccountMsg('当前密码验证通过，请设置新密码')
     } catch (err) {
-      setAccountError(err instanceof Error ? err.message : '当前密码错误')
+      showToast(err instanceof Error ? err.message : '当前密码错误', 'err')
     } finally {
       setVerifyBusy(false)
     }
   }
 
   async function handleExport() {
-    setPwdError('')
     setPwd('')
     setPwdConfirm('')
     setPwdModal('export')
@@ -377,17 +371,14 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
 
   async function confirmExport() {
     if (pwd.length < 6) {
-      setPwdError('备份密码至少 6 位')
+      showToast('备份密码至少 6 位', 'err')
       return
     }
     if (pwd !== pwdConfirm) {
-      setPwdError('两次输入的密码不一致')
+      showToast('两次输入的密码不一致', 'err')
       return
     }
     setPwdBusy(true)
-    setBackupMsg('')
-    setBackupError('')
-    setPwdError('')
     try {
       const res = await api.exportBackup(pwd)
       const blob = new Blob([JSON.stringify(res)], { type: 'application/json' })
@@ -402,9 +393,9 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       a.remove()
       URL.revokeObjectURL(url)
       setPwdModal(null)
-      setBackupMsg('备份已导出（已用密码加密，请妥善保管密码）')
+      showToast('备份已导出（已用密码加密，请妥善保管密码）')
     } catch (err) {
-      setPwdError(err instanceof Error ? err.message : '导出失败')
+      showToast(err instanceof Error ? err.message : '导出失败', 'err')
     } finally {
       setPwdBusy(false)
     }
@@ -413,15 +404,12 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   async function handleImportFile(file: File | undefined) {
     if (!file) return
     setBackupBusy(true)
-    setBackupMsg('')
-    setBackupError('')
     try {
       const text = await file.text()
       const parsed = JSON.parse(text) as BackupData | { data: string }
       // 加密备份：data 为密文
       if (parsed && typeof (parsed as { data?: string }).data === 'string' && (parsed as { data: string }).data) {
         setPendingImportData((parsed as { data: string }).data)
-        setPwdError('')
         setPwd('')
         setPwdModal('import')
         return
@@ -432,7 +420,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       }
       await restoreLegacy(data)
     } catch (err) {
-      setBackupError(err instanceof Error ? err.message : '导入失败')
+      showToast(err instanceof Error ? err.message : '导入失败', 'err')
     } finally {
       setBackupBusy(false)
       if (importRef.current) importRef.current.value = ''
@@ -442,22 +430,18 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   async function confirmImport() {
     if (!pendingImportData) return
     if (pwd.length < 6) {
-      setPwdError('请输入备份密码（至少 6 位）')
+      showToast('请输入备份密码（至少 6 位）', 'err')
       return
     }
     setPwdBusy(true)
-    setBackupMsg('')
-    setBackupError('')
-    setPwdError('')
     try {
       const res = await api.restoreBackup({ password: pwd, data: pendingImportData })
       await Promise.all([loadServers(), refreshAi()])
       setPwdModal(null)
       setPendingImportData(null)
-      setBackupMsg(`还原成功：${res.servers_restored} 台服务器、AI 设置与常用命令已恢复`)
+      showToast(`还原成功：${res.servers_restored} 台服务器、AI 设置与常用命令已恢复`)
     } catch (err) {
-      // 错误显示在弹窗内，便于用户看到密码错误后重新输入
-      setPwdError(err instanceof Error ? err.message : '还原失败')
+      showToast(err instanceof Error ? err.message : '还原失败', 'err')
     } finally {
       setPwdBusy(false)
       if (importRef.current) importRef.current.value = ''
@@ -488,7 +472,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
     }
     await Promise.all([loadServers(), refreshAi()])
     const cmdCount = Array.isArray(data.common_commands) ? data.common_commands.length : 0
-    setBackupMsg(
+    showToast(
       `还原成功：${res.servers_restored} 台服务器、AI 设置${cmdCount > 0 ? `、${cmdCount} 条常用命令` : ''}已恢复`,
     )
   }
@@ -501,6 +485,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   ]
 
   return (
+    <>
     <Modal
       open={open}
       title="设置"
@@ -673,25 +658,6 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   </div>
                 </div>
 
-                {error && (
-                  <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-danger">
-                    <AlertIcon size={14} className="shrink-0 text-danger" />
-                    {error}
-                  </div>
-                )}
-                {validateError && (
-                  <div className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[13px] text-warn">
-                    <AlertIcon size={14} className="mt-0.5 shrink-0 text-warn" />
-                    <span className="min-w-0 break-all">{validateError}</span>
-                  </div>
-                )}
-                {saved && (
-                  <div className="flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-dim px-3 py-2 text-[13px] text-accent-bright">
-                    <CheckCircleIcon size={14} className="shrink-0" />
-                    {saved}
-                  </div>
-                )}
-
                 {(liveModels.length > 0 || (hasKey && !apiKey.trim())) && (
                   <div className="flex justify-end pt-1">
                     <button
@@ -756,8 +722,6 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                     setOldPassword('')
                     setNewPassword('')
                     setConfirmPassword('')
-                    setAccountMsg('')
-                    setAccountError('')
                   }}
                   className="btn-danger w-full flex-none"
                   title="通过弹窗验证当前密码后设置新密码"
@@ -766,18 +730,6 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                 </button>
                 </div>
 
-                {accountError && (
-                  <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-danger">
-                    <AlertIcon size={14} className="shrink-0 text-danger" />
-                    {accountError}
-                  </div>
-                )}
-                {accountMsg && (
-                  <div className="flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-dim px-3 py-2 text-[13px] text-accent-bright">
-                    <CheckCircleIcon size={14} className="shrink-0" />
-                    {accountMsg}
-                  </div>
-                )}
               </div>
 
               {/* 外观 */}
@@ -961,18 +913,6 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                 />
               </div>
 
-              {backupError && (
-                <div className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-danger">
-                  <AlertIcon size={14} className="mt-0.5 shrink-0 text-danger" />
-                  <span className="min-w-0 break-all">{backupError}</span>
-                </div>
-              )}
-              {backupMsg && (
-                <div className="flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-dim px-3 py-2 text-[13px] text-accent-bright">
-                  <CheckCircleIcon size={14} className="shrink-0" />
-                  <span className="min-w-0 break-all">{backupMsg}</span>
-                </div>
-              )}
               <div className="rounded-lg border border-line bg-panel-2 p-3.5">
                 <p className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
                   <DatabaseIcon size={14} className="text-accent" /> 包含内容
@@ -1011,7 +951,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-soft transition-colors duration-150 hover:text-ink"
                 >
                   <GithubIcon size={15} />
-                  v0.2.5
+                  v0.2.6
                 </a>
               </div>
 
@@ -1064,13 +1004,17 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
           onClick={(e) => {
-            if (e.target === e.currentTarget && !pwdBusy) setPwdModal(null)
+            if (e.target !== e.currentTarget || pwdBusy) return
+            // 框选拖拽保护：输入框内选中文字拖到弹窗外松开时不关闭
+            if (isDragSelectingInside(pwdModalRef.current)) return
+            setPwdModal(null)
           }}
           role="dialog"
           aria-modal="true"
           aria-label={pwdModal === 'export' ? '设置备份密码' : '输入备份密码'}
         >
           <div
+            ref={pwdModalRef}
             className="w-full max-w-sm overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl shadow-black/60"
             onClick={(e) => e.stopPropagation()}
           >
@@ -1115,12 +1059,6 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   />
                 </label>
               )}
-              {pwdError && (
-                <div className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-danger">
-                  <AlertIcon size={14} className="mt-0.5 shrink-0 text-danger" />
-                  <span className="min-w-0 break-all">{pwdError}</span>
-                </div>
-              )}
               <div className="flex justify-end gap-2 pt-1">
                 <button type="button" onClick={() => setPwdModal(null)} disabled={pwdBusy} className="btn-ghost">
                   取消
@@ -1142,129 +1080,163 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
         </div>
       )}
 
-      {/* 修改登录密码弹窗 */}
-      {pwdChangeOpen && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !verifyBusy && !accountBusy) setPwdChangeOpen(false)
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="修改登录密码"
-        >
+      {/* 修改登录密码弹窗（单层，portal 到 body，避免嵌套 modal） */}
+      {pwdChangeOpen &&
+        createPortal(
           <div
-            className="w-full max-w-sm overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl shadow-black/60"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target !== e.currentTarget || verifyBusy || accountBusy) return
+              // 框选拖拽保护：输入框内选中文字拖到弹窗外松开时不关闭
+              if (isDragSelectingInside(pwdBoxRef.current)) return
+              setPwdChangeOpen(false)
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="修改登录密码"
           >
-            <div className="border-b border-line px-5 py-4">
-              <h3 className="text-[15px] font-semibold text-ink">修改登录密码</h3>
-              <p className="mt-0.5 text-xs text-soft">
-                {pwdVerified ? '已验证当前密码，请设置新密码' : '请输入当前密码以验证身份'}
-              </p>
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                if (pwdVerified) handlePassword(e)
-                else handleVerify(e)
-              }}
-              className="space-y-3 px-5 py-4"
+            <div
+              ref={pwdBoxRef}
+              className="w-full max-w-sm overflow-hidden rounded-xl border border-line bg-panel shadow-2xl shadow-black/50"
+              onClick={(e) => e.stopPropagation()}
             >
-              {!pwdVerified ? (
-                <label className="block">
-                  <span className="label">当前密码</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="password"
-                      value={oldPassword}
-                      onChange={(e) => setOldPassword(e.target.value)}
-                      className="input flex-1"
-                      autoComplete="current-password"
-                      autoFocus
-                    />
-                    <button
-                      type="submit"
-                      disabled={verifyBusy}
-                      className="btn-primary flex-none"
-                      title="验证当前密码是否正确"
-                    >
-                      {verifyBusy ? (
-                        <>
-                          <LoaderIcon size={14} className="animate-spin" /> 验证中…
-                        </>
-                      ) : (
-                        '验证'
-                      )}
-                    </button>
-                  </div>
-                </label>
-              ) : (
-                <>
+              <div className="px-6 pb-2 pt-6">
+                <h3 className="flex items-center gap-1.5 text-base font-semibold tracking-tight text-ink">
+                  <ShieldIcon size={15} className="shrink-0 text-accent" /> 修改登录密码
+                </h3>
+                <p className="mt-1 text-sm text-soft">
+                  {pwdVerified ? '已验证身份，请设置新密码。' : '为了保护账户安全，请验证当前密码。'}
+                </p>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (pwdVerified) handlePassword(e)
+                  else handleVerify(e)
+                }}
+                className="space-y-4 px-6 pt-4"
+              >
+                {!pwdVerified ? (
                   <label className="block">
-                    <span className="label">新密码（至少 6 位）</span>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="input"
-                      autoComplete="new-password"
-                      autoFocus
-                    />
+                    <span className="label">当前密码</span>
+                    <div className="relative">
+                      <input
+                        type={showOldPwd ? 'text' : 'password'}
+                        value={oldPassword}
+                        onChange={(e) => setOldPassword(e.target.value)}
+                        className="input pr-10"
+                        autoComplete="current-password"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowOldPwd((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-faint transition-colors duration-150 hover:text-ink"
+                        title={showOldPwd ? '隐藏密码' : '显示密码'}
+                        aria-label={showOldPwd ? '隐藏密码' : '显示密码'}
+                      >
+                        {showOldPwd ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
+                      </button>
+                    </div>
                   </label>
-                  <label className="block">
-                    <span className="label">确认新密码</span>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="input"
-                      autoComplete="new-password"
-                    />
-                  </label>
-                </>
-              )}
-              {(accountError || accountMsg) && (
-                <div
-                  className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-[13px] ${
-                    accountError
-                      ? 'border-danger/25 bg-danger-dim text-danger'
-                      : 'border-accent/25 bg-accent-dim text-accent-bright'
-                  }`}
-                >
-                  {accountError ? (
-                    <AlertIcon size={14} className="mt-0.5 shrink-0 text-danger" />
-                  ) : (
-                    <CheckCircleIcon size={14} className="mt-0.5 shrink-0" />
-                  )}
-                  <span className="min-w-0 break-all">{accountError || accountMsg}</span>
-                </div>
-              )}
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setPwdChangeOpen(false)}
-                  disabled={verifyBusy || accountBusy}
-                  className="btn-ghost"
-                >
-                  取消
-                </button>
-                {pwdVerified && (
-                  <button type="submit" disabled={accountBusy} className="btn-primary">
-                    {accountBusy ? (
+                ) : (
+                  <>
+                    <label className="block">
+                      <span className="label">新密码（至少 6 位）</span>
+                      <div className="relative">
+                        <input
+                          type={showNewPwd ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="input pr-10"
+                          autoComplete="new-password"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPwd((v) => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-faint transition-colors duration-150 hover:text-ink"
+                          title={showNewPwd ? '隐藏密码' : '显示密码'}
+                          aria-label={showNewPwd ? '隐藏密码' : '显示密码'}
+                        >
+                          {showNewPwd ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
+                        </button>
+                      </div>
+                    </label>
+                    <label className="block">
+                      <span className="label">确认新密码</span>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPwd ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="input pr-10"
+                          autoComplete="new-password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPwd((v) => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-faint transition-colors duration-150 hover:text-ink"
+                          title={showConfirmPwd ? '隐藏密码' : '显示密码'}
+                          aria-label={showConfirmPwd ? '隐藏密码' : '显示密码'}
+                        >
+                          {showConfirmPwd ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
+                        </button>
+                      </div>
+                    </label>
+                  </>
+                )}
+                <div className="flex justify-end gap-2 border-t border-line pb-6 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setPwdChangeOpen(false)}
+                    disabled={verifyBusy || accountBusy}
+                    className="btn-ghost"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={verifyBusy || accountBusy}
+                    className="btn-primary"
+                  >
+                    {verifyBusy || accountBusy ? (
                       <>
-                        <LoaderIcon size={14} className="animate-spin" /> 保存中…
+                        <LoaderIcon size={14} className="animate-spin" /> 处理中…
                       </>
                     ) : (
                       '确认修改'
                     )}
                   </button>
-                )}
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </Modal>
+
+      {/* 悬浮提示（2 秒自动消失） */}
+      {toast &&
+        createPortal(
+          <div className="pointer-events-none fixed left-1/2 top-4 z-[80] -translate-x-1/2">
+            <div
+              className={`flex max-w-md items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] shadow-xl shadow-black/40 backdrop-blur ${
+                toast.type === 'ok'
+                  ? 'border-accent/25 bg-panel/95 text-ink'
+                  : 'border-danger/30 bg-danger-dim/95 text-danger'
+              }`}
+            >
+              {toast.type === 'ok' ? (
+                <CheckCircleIcon size={15} className="shrink-0 text-accent" />
+              ) : (
+                <AlertIcon size={15} className="shrink-0 text-danger" />
+              )}
+              <span className="min-w-0 break-all">{toast.msg}</span>
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   )
 }

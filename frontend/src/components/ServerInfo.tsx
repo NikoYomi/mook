@@ -4,7 +4,6 @@ import { useServers } from '../store/servers'
 import { formatBytes, formatDateTime } from '../utils/command'
 import {
   ActivityIcon,
-  AlertIcon,
   CheckIcon,
   ClockIcon,
   CopyIcon,
@@ -18,7 +17,13 @@ import {
 
 const POLL_MS = 3000
 
-export default function ServerInfo({ serverId }: { serverId: number | null }) {
+export default function ServerInfo({
+  serverId,
+  onError,
+}: {
+  serverId: number | null
+  onError?: (msg: string) => void
+}) {
   const servers = useServers((s) => s.servers)
   const server = servers.find((s) => s.id === serverId)
 
@@ -28,6 +33,8 @@ export default function ServerInfo({ serverId }: { serverId: number | null }) {
   const [statsError, setStatsError] = useState('')
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef<number | undefined>(undefined)
+  // 去重：仅当错误消息变化时才向上层上报 toast，避免轮询期反复弹窗
+  const lastErr = useRef('')
 
   // 串行轮询服务器实时状态（上一次完成后才排下一次），避免高延迟下请求重叠、响应乱序。
   useEffect(() => {
@@ -44,7 +51,14 @@ export default function ServerInfo({ serverId }: { serverId: number | null }) {
         setStats(s)
         setStatsError('')
       } catch (err) {
-        if (!stop) setStatsError(err instanceof Error ? err.message : '采集失败')
+        if (!stop) {
+          const msg = err instanceof Error ? err.message : '采集失败'
+          setStatsError(msg)
+          if (msg !== lastErr.current) {
+            lastErr.current = msg
+            onError?.(msg)
+          }
+        }
       } finally {
         if (!stop) timer = window.setTimeout(load, POLL_MS)
       }
@@ -54,7 +68,7 @@ export default function ServerInfo({ serverId }: { serverId: number | null }) {
       stop = true
       window.clearTimeout(timer)
     }
-  }, [serverId])
+  }, [serverId, onError])
 
   if (!server) {
     return (
@@ -100,13 +114,6 @@ export default function ServerInfo({ serverId }: { serverId: number | null }) {
           </div>
         </div>
       </div>
-
-      {statsError && (
-        <div className="mb-2 flex items-center gap-1.5 rounded-lg border border-danger/25 bg-danger-dim px-2.5 py-1.5 text-[11px] text-danger">
-          <AlertIcon size={12} className="shrink-0 text-danger" />
-          <span className="min-w-0 break-all">{statsError}</span>
-        </div>
-      )}
 
       <div className="space-y-1.5">
         {/* 地址：仅显示 IP，点击可复制 */}

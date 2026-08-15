@@ -65,6 +65,8 @@ export interface BackupServerItem {
   port: number
   username: string
   auth_type: 'password' | 'key'
+  password?: string
+  private_key?: string
   password_enc?: string
   private_key_enc?: string
   tags?: string[]
