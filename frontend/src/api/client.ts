@@ -29,6 +29,7 @@ export interface AiSettings {
   has_api_key: boolean
   validated: boolean
   custom_providers: CustomProviderSetting[]
+  provider_keys?: Record<string, boolean>
 }
 
 export interface CustomProviderSetting {
@@ -192,7 +193,9 @@ export const api = {
 
   // ---- 备份与还原 ----
   getBackup: () => request<BackupData>('/api/backup'),
-  restoreBackup: (data: BackupData) =>
+  exportBackup: (password: string) =>
+    request<{ data: string }>('/api/backup/export', { method: 'POST', body: JSON.stringify({ password }) }),
+  restoreBackup: (data: BackupData | { password: string; data: string }) =>
     request<{ ok: boolean; servers_restored: number }>('/api/backup/restore', { method: 'POST', body: JSON.stringify(data) }),
 
   // ---- AI 模型列表 ----

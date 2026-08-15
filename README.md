@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.2.1-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.2.5-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,9 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.2.1** 
+**当前版本：v0.2.5** 
+
+> 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
 ---
 
@@ -66,7 +68,7 @@ Docker 20.10+，支持 Linux / macOS / Windows（WSL2）。
 
 ### 方式一：使用发布镜像（推荐，免本机构建）
 
-打 `v*` Tag 时由 GitHub Actions 自动构建并推送镜像（tag 含 `0.2.1` / `latest`，双平台）：
+打 `v*` Tag 时由 GitHub Actions 自动构建并推送镜像（tag 含 `0.2.5` / `latest`，双平台）：
 
 - **GHCR**：`ghcr.io/nikoyomi/mook`
 - **Docker Hub**：`nikoyomi/mook`
@@ -218,7 +220,11 @@ mook/
 
 - ✅ v0.1 —— 基础 SSH 终端 + AI 助手
 - ✅ v0.2 —— 监控面板 + SFTP 文件管理 + 多标签会话 + AI 自动获取模型 + CI/CD 发布
-- 🔄 v0.2.1 —— 主题系统 / 中英双语 / 终端体验与监控采集打磨（当前）
+- ✅ v0.2.1 —— 主题系统 / 中英双语 / 终端体验与监控采集打磨
+- ✅ v0.2.2 —— 服务器拖拽排序 / 常用命令使用计数与置顶 / 请求日志
+- ✅ v0.2.3 —— Docker Hub 双源发布 / 按钮提示 / 终端页脚与内边距
+- ✅ v0.2.4 —— 登录页品牌 / 下拉宽度修正 / 新增终端背景
+- ✅ v0.2.5 —— AI 密钥按厂商隔离 / 备份口令加密 / 新终端背景 / 聚焦样式细化（当前）
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
 - ⏳ v2.0 —— AI DevOps 助手
@@ -226,6 +232,13 @@ mook/
 ---
 
 ## 📄 更新日志
+
+### v0.2.5
+
+- **AI 密钥按厂商隔离**：每个厂商（base_url）独立加密存储密钥，切换厂商不再互相覆盖；设置页切换厂商时实时显示各厂商密钥配置状态
+- **备份口令加密**：备份导出改为整包密码加密（PBKDF2 + AES-256-GCM），导出/导入增加密码确认；兼容导入旧版明文备份
+- **终端背景更新**：新增「层叠山峦」「电路板」两款背景，替换原「矩阵雨」「扫描线」
+- **聚焦样式细化**：输入框聚焦绿色描边 / 光环从 2px 改 1px、颜色更淡
 
 ### v0.2.1
 
@@ -268,5 +281,6 @@ mook/
 
 ## 📚 文档
 
+- [完整使用介绍（博客）](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 - [API 一览](docs/API.md)
 - 开发变更记录保存在本地工作区「计划」文件夹（不随仓库发布）

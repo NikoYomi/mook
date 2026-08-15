@@ -17,6 +17,7 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | /api/me/username | 修改用户名 `{username}` |
+| POST | /api/me/verify-password | 修改密码前验证当前密码 `{old_password}` |
 | POST | /api/me/password | 修改密码 `{old_password, new_password}` |
 
 ## 服务器管理
@@ -27,6 +28,8 @@
 | POST | /api/servers | 新增服务器 |
 | PUT | /api/servers/{id} | 更新服务器 |
 | DELETE | /api/servers/{id} | 删除服务器 |
+| PUT | /api/servers/reorder | 拖拽排序 `{ids: [...]}` |
+| GET | /api/servers/{id}/stats | 实时监控（延迟/CPU/内存/磁盘） |
 
 服务器请求体：
 
@@ -68,21 +71,30 @@
 }
 ```
 
+## 常用命令
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | /api/commands | 常用命令列表 |
+| PUT | /api/commands | 全量保存常用命令 |
+| POST | /api/commands/{id}/use | 使用某条命令（计数 +1，用于自动排序） |
+
 ## 备份与还原
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | /api/backup | 导出备份（服务器配置含凭据密文 + AI 设置） |
-| POST | /api/backup/restore | 还原备份（服务器清空重建 + 设置覆盖） |
+| POST | /api/backup/export | 导出加密备份 `{password}`（服务器配置含凭据密文 + AI 设置 + 常用命令，整包口令加密） |
+| POST | /api/backup/restore | 还原备份：加密版 `{password, data}` 或旧版明文 `{version, servers, settings, common_commands}` |
+| GET | /api/backup | 导出明文结构备份（兼容旧客户端，凭据为服务端加密密文；新前端改用 POST export） |
 
-备份文件结构（前端还会附带 `common_commands` 常用命令）：
+备份文件结构（前端导出时整包使用口令加密，`data` 为密文）：
 
 ```json
 {
   "version": 1,
   "exported_at": "2026-08-13T10:00:00Z",
   "servers": [ { "name": "...", "host": "...", "port": 22, "username": "root", "auth_type": "password", "password_enc": "...", "private_key_enc": "", "tags": ["生产"] } ],
-  "settings": { "ai_base_url": "...", "ai_model": "...", "ai_api_key": "...", "ai_validated": "1" }
+  "settings": { "ai_base_url": "...", "ai_model": "...", "ai_api_key": "...", "ai_validated": "1", "ai_provider_keys": "{...}", "ai_custom_providers": "[...]" }
 }
 ```
 
@@ -103,9 +115,15 @@
   "base_url": "https://api.deepseek.com",
   "model": "deepseek-chat",
   "has_api_key": true,
-  "validated": true
+  "validated": true,
+  "custom_providers": [ { "name": "...", "base_url": "...", "model": "...", "has_api_key": true } ],
+  "provider_keys": { "https://api.deepseek.com": true, "https://api.openai.com/v1": false }
 }
 ```
+
+说明：
+- API Key 按厂商（规范化 `base_url`）独立加密存储，切换厂商不会互相覆盖；`provider_keys` 供前端切换厂商时显示各厂商密钥是否已配置。
+- 备份导出采用口令加密（PBKDF2 + AES-256-GCM），忘记密码无法解密；导入时需输入同一密码。
 
 ## WebSocket
 

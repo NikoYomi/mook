@@ -48,6 +48,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, secret string) http.Handler {
 	mux.Handle("POST /api/me/verify-password", authed(http.HandlerFunc(verifyPassword(db))))
 	mux.Handle("POST /api/me/password", authed(http.HandlerFunc(changePassword(db))))
 	mux.Handle("GET /api/backup", authed(http.HandlerFunc(exportBackup(db))))
+	mux.Handle("POST /api/backup/export", authed(http.HandlerFunc(exportBackupEncrypted(db))))
 	mux.Handle("POST /api/backup/restore", authed(http.HandlerFunc(restoreBackup(db, secret))))
 	mux.Handle("GET /ws/terminal", authed(http.HandlerFunc(websocket.HandleTerminal(db, secret))))
 

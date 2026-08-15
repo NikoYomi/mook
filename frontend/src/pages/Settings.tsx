@@ -35,6 +35,10 @@ function unique(list: string[]): string[] {
   return Array.from(new Set(list.filter(Boolean)))
 }
 
+function normalizeBaseUrl(url: string): string {
+  return url.trim().replace(/\/+$/, '').toLowerCase()
+}
+
 interface Props {
   open: boolean
   initialTab?: SettingsTab
@@ -53,6 +57,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   const [customName, setCustomName] = useState('')
   const [liveModels, setLiveModels] = useState<string[]>([])
   const [customProviders, setCustomProviders] = useState<CustomProviderSetting[]>([])
+  const [providerKeys, setProviderKeys] = useState<Record<string, boolean>>({})
   const [modelManual, setModelManual] = useState(false)
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsMsg, setModelsMsg] = useState('')
@@ -81,8 +86,14 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   const [backupBusy, setBackupBusy] = useState(false)
   const [backupMsg, setBackupMsg] = useState('')
   const [backupError, setBackupError] = useState('')
+  // 备份密码弹窗：export=导出，import=导入
+  const [pwdModal, setPwdModal] = useState<'export' | 'import' | null>(null)
+  const [pwd, setPwd] = useState('')
+  const [pwdConfirm, setPwdConfirm] = useState('')
+  const [pwdError, setPwdError] = useState('')
+  const [pwdBusy, setPwdBusy] = useState(false)
+  const [pendingImportData, setPendingImportData] = useState<string | null>(null)
 
-  const commands = useCommands((s) => s.commands)
   const replaceCommands = useCommands((s) => s.replace)
   const loadServers = useServers((s) => s.load)
   const refreshAi = useAi((s) => s.refresh)
@@ -100,6 +111,12 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   const bgUploadRef = useRef<HTMLInputElement>(null)
 
   const provider = useMemo(() => AI_PROVIDERS.find((p) => p.id === providerId), [providerId])
+
+  // 切换厂商（baseUrl 变化）时，按该厂商已存的密钥状态更新「已配置」标识
+  useEffect(() => {
+    if (!open) return
+    setHasKey(providerKeys[normalizeBaseUrl(baseUrl)] ?? false)
+  }, [baseUrl, providerKeys, open])
 
   // 外部指定初始子菜单时同步
   useEffect(() => {
@@ -125,6 +142,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
         setBaseUrl(s.base_url)
         setModel(s.model)
         setHasKey(s.has_api_key)
+        setProviderKeys(s.provider_keys ?? {})
         setValidated(s.validated)
         setCustomProviders(s.custom_providers ?? [])
         const p = providerByBaseUrl(s.base_url)
@@ -219,16 +237,17 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
     }
   }
 
-  // 输入 API Key（或切换厂商/接口地址，本地 Ollama 无需密钥）后自动拉取模型
+  // 输入 API Key（或切换厂商/接口地址，本地 Ollama 无需密钥，或该厂商已存密钥）后自动拉取模型
   useEffect(() => {
     if (!baseUrl.trim()) return
-    if (!apiKey.trim() && provider?.id !== 'ollama') return
+    const hasStoredKey = providerKeys[normalizeBaseUrl(baseUrl)] ?? false
+    if (!apiKey.trim() && !hasStoredKey && provider?.id !== 'ollama') return
     const t = setTimeout(() => {
       fetchModels()
     }, 600)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, baseUrl, providerId])
+  }, [apiKey, baseUrl, providerId, providerKeys])
 
   const modelOptions = useMemo(() => unique([...liveModels, model]), [liveModels, model])
 
@@ -253,10 +272,14 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       setValidated(res.validated)
       if (res.validated) {
         setSaved('设置已保存，密钥验证通过')
+        if (apiKey.trim()) {
+          setProviderKeys((prev) => ({ ...prev, [normalizeBaseUrl(baseUrl)]: true }))
+        }
         if (customNameToSave) {
           setCustomName(customNameToSave)
           const updated = await api.getAiSettings()
           setCustomProviders(updated.custom_providers ?? [])
+          setProviderKeys(updated.provider_keys ?? {})
           setProviderId(`custom:${customNameToSave}`)
         }
       } else {
@@ -344,13 +367,27 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   }
 
   async function handleExport() {
-    setBackupBusy(true)
+    setPwdError('')
+    setPwd('')
+    setPwdConfirm('')
+    setPwdModal('export')
+  }
+
+  async function confirmExport() {
+    if (pwd.length < 6) {
+      setPwdError('备份密码至少 6 位')
+      return
+    }
+    if (pwd !== pwdConfirm) {
+      setPwdError('两次输入的密码不一致')
+      return
+    }
+    setPwdBusy(true)
     setBackupMsg('')
     setBackupError('')
     try {
-      const data = await api.getBackup()
-      const full: BackupData = { ...data, common_commands: commands }
-      const blob = new Blob([JSON.stringify(full, null, 2)], { type: 'application/json' })
+      const res = await api.exportBackup(pwd)
+      const blob = new Blob([JSON.stringify(res)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       const d = new Date()
@@ -361,11 +398,12 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       a.click()
       a.remove()
       URL.revokeObjectURL(url)
-      setBackupMsg('备份已导出（包含服务器、AI 设置与常用命令）')
+      setPwdModal(null)
+      setBackupMsg('备份已导出（已用密码加密，请妥善保管密码）')
     } catch (err) {
       setBackupError(err instanceof Error ? err.message : '导出失败')
     } finally {
-      setBackupBusy(false)
+      setPwdBusy(false)
     }
   }
 
@@ -376,42 +414,78 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
     setBackupError('')
     try {
       const text = await file.text()
-      const data = JSON.parse(text) as BackupData
+      const parsed = JSON.parse(text) as BackupData | { data: string }
+      // 加密备份：data 为密文
+      if (parsed && typeof (parsed as { data?: string }).data === 'string' && (parsed as { data: string }).data) {
+        setPendingImportData((parsed as { data: string }).data)
+        setPwdError('')
+        setPwd('')
+        setPwdModal('import')
+        return
+      }
+      const data = parsed as BackupData
       if (!data || data.version !== 1 || !Array.isArray(data.servers)) {
         throw new Error('不是有效的 Mook 备份文件')
       }
-      const res = await api.restoreBackup({
-        version: data.version,
-        servers: data.servers,
-        settings: data.settings ?? {},
-      })
-      if (Array.isArray(data.common_commands)) {
-        const raw = data.common_commands as unknown as Array<Record<string, unknown>>
-        const cmds = raw
-          .filter((x) => x && typeof x.name === 'string' && typeof x.command === 'string')
-          .map((x, i) => ({
-            id:
-              typeof x.id === 'string' && x.id
-                ? (x.id as string)
-                : `imp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
-            name: x.name as string,
-            command: x.command as string,
-            category: typeof x.category === 'string' ? (x.category as string) : undefined,
-            createdAt: typeof x.createdAt === 'number' ? (x.createdAt as number) : Date.now(),
-          }))
-        replaceCommands(cmds)
-      }
-      await Promise.all([loadServers(), refreshAi()])
-      const cmdCount = Array.isArray(data.common_commands) ? data.common_commands.length : 0
-      setBackupMsg(
-        `还原成功：${res.servers_restored} 台服务器、AI 设置${cmdCount > 0 ? `、${cmdCount} 条常用命令` : ''}已恢复`,
-      )
+      await restoreLegacy(data)
     } catch (err) {
       setBackupError(err instanceof Error ? err.message : '导入失败')
     } finally {
       setBackupBusy(false)
       if (importRef.current) importRef.current.value = ''
     }
+  }
+
+  async function confirmImport() {
+    if (!pendingImportData) return
+    if (pwd.length < 6) {
+      setPwdError('请输入备份密码（至少 6 位）')
+      return
+    }
+    setPwdBusy(true)
+    setBackupMsg('')
+    setBackupError('')
+    try {
+      const res = await api.restoreBackup({ password: pwd, data: pendingImportData })
+      await Promise.all([loadServers(), refreshAi()])
+      setPwdModal(null)
+      setPendingImportData(null)
+      setBackupMsg(`还原成功：${res.servers_restored} 台服务器、AI 设置与常用命令已恢复`)
+    } catch (err) {
+      setBackupError(err instanceof Error ? err.message : '导入失败')
+    } finally {
+      setPwdBusy(false)
+      if (importRef.current) importRef.current.value = ''
+    }
+  }
+
+  async function restoreLegacy(data: BackupData) {
+    const res = await api.restoreBackup({
+      version: data.version,
+      servers: data.servers,
+      settings: data.settings ?? {},
+    })
+    if (Array.isArray(data.common_commands)) {
+      const raw = data.common_commands as unknown as Array<Record<string, unknown>>
+      const cmds = raw
+        .filter((x) => x && typeof x.name === 'string' && typeof x.command === 'string')
+        .map((x, i) => ({
+          id:
+            typeof x.id === 'string' && x.id
+              ? (x.id as string)
+              : `imp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
+          name: x.name as string,
+          command: x.command as string,
+          category: typeof x.category === 'string' ? (x.category as string) : undefined,
+          createdAt: typeof x.createdAt === 'number' ? (x.createdAt as number) : Date.now(),
+        }))
+      replaceCommands(cmds)
+    }
+    await Promise.all([loadServers(), refreshAi()])
+    const cmdCount = Array.isArray(data.common_commands) ? data.common_commands.length : 0
+    setBackupMsg(
+      `还原成功：${res.servers_restored} 台服务器、AI 设置${cmdCount > 0 ? `、${cmdCount} 条常用命令` : ''}已恢复`,
+    )
   }
 
   const menu: { key: SettingsTab; label: string; icon: typeof SparklesIcon }[] = [
@@ -928,7 +1002,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   onClick={handleExport}
                   disabled={backupBusy}
                   className="btn-primary px-5 py-2.5 text-sm"
-                  title="导出数据备份文件（服务器、AI 设置与常用命令）"
+                  title="导出数据备份文件（密码加密，服务器、AI 设置与常用命令）"
                 >
                   {backupBusy ? (
                     <>
@@ -976,11 +1050,12 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                 <ul className="mt-3 space-y-1.5 text-[13px] text-soft">
                   <li>· 常用命令</li>
                   <li>· 服务器配置（含凭据密文）</li>
-                  <li>· AI 相关设置</li>
+                  <li>· AI 相关设置（各厂商密钥独立保存）</li>
                 </ul>
                 <p className="mt-2.5 text-[12px] text-faint">
+                  导出会使用你设置的<strong className="text-soft">备份密码</strong>对整份文件加密，导入时需输入同一密码还原。
                   导入会<strong className="text-soft">覆盖</strong>当前全部服务器与 AI 设置（常用命令也会被替换）。
-                  凭据以服务端加密密文形式保存，请妥善保管备份文件。
+                  请妥善保管备份密码，忘记密码将无法解密。
                 </p>
               </div>
             </div>
@@ -1006,7 +1081,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-soft transition-colors duration-150 hover:text-ink"
                 >
                   <GithubIcon size={15} />
-                  v0.2.4
+                  v0.2.5
                 </a>
               </div>
 
@@ -1053,6 +1128,89 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
           )}
         </div>
       </div>
+
+      {/* 备份密码弹窗 */}
+      {pwdModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !pwdBusy) setPwdModal(null)
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={pwdModal === 'export' ? '设置备份密码' : '输入备份密码'}
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl shadow-black/60"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-line px-5 py-4">
+              <h3 className="text-[15px] font-semibold text-ink">
+                {pwdModal === 'export' ? '设置备份密码' : '输入备份密码'}
+              </h3>
+              <p className="mt-0.5 text-xs text-soft">
+                {pwdModal === 'export'
+                  ? '导出文件将使用该密码加密，请妥善保管'
+                  : '该备份文件已加密，请输入导出时设置的密码'}
+              </p>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (pwdModal === 'export') confirmExport()
+                else confirmImport()
+              }}
+              className="space-y-3 px-5 py-4"
+            >
+              <label className="block">
+                <span className="label">{pwdModal === 'export' ? '备份密码（至少 6 位）' : '备份密码'}</span>
+                <input
+                  type="password"
+                  value={pwd}
+                  onChange={(e) => setPwd(e.target.value)}
+                  className="input font-mono"
+                  autoComplete="new-password"
+                  autoFocus
+                />
+              </label>
+              {pwdModal === 'export' && (
+                <label className="block">
+                  <span className="label">确认密码</span>
+                  <input
+                    type="password"
+                    value={pwdConfirm}
+                    onChange={(e) => setPwdConfirm(e.target.value)}
+                    className="input font-mono"
+                    autoComplete="new-password"
+                  />
+                </label>
+              )}
+              {pwdError && (
+                <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-danger">
+                  <AlertIcon size={14} className="shrink-0 text-danger" />
+                  {pwdError}
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setPwdModal(null)} disabled={pwdBusy} className="btn-ghost">
+                  取消
+                </button>
+                <button type="submit" disabled={pwdBusy} className="btn-primary">
+                  {pwdBusy ? (
+                    <>
+                      <LoaderIcon size={14} className="animate-spin" /> 处理中…
+                    </>
+                  ) : pwdModal === 'export' ? (
+                    '导出并加密'
+                  ) : (
+                    '解密并还原'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Modal>
   )
 }

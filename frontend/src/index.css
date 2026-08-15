@@ -101,7 +101,7 @@ html[data-theme='light'] .btn-primary {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 1px solid var(--color-accent);
   outline-offset: 1px;
   border-radius: 4px;
 }
@@ -154,7 +154,7 @@ html[data-theme='light'] .btn-primary {
     @apply inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-faint transition-colors duration-150 hover:bg-raise hover:text-ink disabled:cursor-not-allowed disabled:opacity-40;
   }
   .input {
-    @apply w-full rounded-lg border border-line bg-canvas/60 px-3 py-2 text-sm text-ink outline-none transition-colors duration-150 placeholder:text-faint focus:border-accent/50 focus:ring-2 focus:ring-accent/15;
+    @apply w-full rounded-lg border border-line bg-canvas/60 px-3 py-2 text-sm text-ink outline-none transition-colors duration-150 placeholder:text-faint focus:border-accent/40 focus:ring-1 focus:ring-accent/10;
   }
   .label {
     @apply mb-1.5 block text-xs font-medium text-soft;

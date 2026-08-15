@@ -44,21 +44,21 @@ export const BACKGROUNDS: Record<string, BgPreset> = {
   },
   matrix: {
     id: 'matrix',
-    name: '矩阵雨',
+    name: '层叠山峦',
     style: {
-      backgroundColor: '#04140a',
+      backgroundColor: '#0a1420',
       backgroundImage:
-        'linear-gradient(rgba(34,197,94,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(34,197,94,0.08) 1px, transparent 1px), radial-gradient(rgba(34,197,94,0.5) 1px, transparent 1.5px)',
-      backgroundSize: '28px 28px, 28px 28px, 8px 8px',
+        'radial-gradient(80% 55% at 30% 118%, rgba(30,58,95,0.55), transparent 62%), radial-gradient(70% 45% at 70% 122%, rgba(20,45,80,0.55), transparent 62%), radial-gradient(60% 38% at 50% 128%, rgba(56,189,248,0.22), transparent 60%), radial-gradient(130% 60% at 50% 135%, rgba(34,197,94,0.12), transparent 65%)',
     },
   },
   scanlines: {
     id: 'scanlines',
-    name: '扫描线',
+    name: '电路板',
     style: {
-      backgroundColor: '#070d1a',
+      backgroundColor: '#0b1512',
       backgroundImage:
-        'repeating-linear-gradient(0deg, rgba(148,163,184,0.16) 0px, rgba(148,163,184,0.16) 1px, transparent 1px, transparent 4px), radial-gradient(900px 500px at 50% 0%, rgba(56,189,248,0.16), transparent 60%)',
+        'linear-gradient(115deg, transparent 38%, rgba(34,197,94,0.05) 38%, rgba(34,197,94,0.05) 38.6%, transparent 38.6%), linear-gradient(115deg, transparent 62%, rgba(34,197,94,0.04) 62%, rgba(34,197,94,0.04) 62.6%, transparent 62.6%), radial-gradient(rgba(34,197,94,0.22) 1px, transparent 1.6px), radial-gradient(700px 400px at 80% 0%, rgba(56,189,248,0.10), transparent 60%), radial-gradient(600px 360px at 10% 110%, rgba(34,197,94,0.14), transparent 60%)',
+      backgroundSize: '100% 100%, 100% 100%, 26px 26px, 100% 100%, 100% 100%',
     },
   },
   stars: {
@@ -86,7 +86,7 @@ export const BACKGROUNDS: Record<string, BgPreset> = {
 export const XTERM_BG_CLASSIC = '#070d1a'
 export const XTERM_BG_TEXTURE = 'rgba(0, 0, 0, 0)'
 
-// 轮播顺序：经典 → 网格 → 圆点 → 极光渐变 → 矩阵雨 → 扫描线 → 星空 → 波浪（若上传了图片 → 图片）
+// 轮播顺序：经典 → 网格 → 圆点 → 极光渐变 → 层叠山峦 → 电路板 → 星空 → 波浪（若上传了图片 → 图片）
 export const CYCLE_ORDER: TermBgId[] = ['classic', 'grid', 'dots', 'gradient', 'matrix', 'scanlines', 'stars', 'waves']
 
 export function bgStyle(

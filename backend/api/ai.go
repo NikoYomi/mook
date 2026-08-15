@@ -18,14 +18,13 @@ var errAINotConfigured = errors.New("AI 尚未配置，请先到「设置」页�
 func loadAIClient(db *sql.DB, secret string) (*ai.Client, error) {
 	baseURL, _ := database.GetSetting(db, keyAIBaseURL)
 	model, _ := database.GetSetting(db, keyAIModel)
-	encKey, _ := database.GetSetting(db, keyAIAPIKey)
 	if baseURL == "" {
 		baseURL = defaultAIBaseURL
 	}
 	if model == "" {
 		model = defaultAIModel
 	}
-	apiKey, err := utils.Decrypt(secret, encKey)
+	apiKey, err := utils.Decrypt(secret, getProviderKey(db, baseURL))
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +79,7 @@ func listAIModels(db *sql.DB, secret string) http.HandlerFunc {
 		}
 		apiKey := strings.TrimSpace(r.URL.Query().Get("api_key"))
 		if apiKey == "" {
-			encKey, _ := database.GetSetting(db, keyAIAPIKey)
-			apiKey, _ = utils.Decrypt(secret, encKey)
+			apiKey, _ = utils.Decrypt(secret, getProviderKey(db, baseURL))
 		}
 		client := ai.NewClient(baseURL, apiKey, "")
 		models, err := client.ListModels()
@@ -93,6 +91,7 @@ func listAIModels(db *sql.DB, secret string) http.HandlerFunc {
 		writeJSON(w, http.StatusOK, map[string]any{"models": models})
 	}
 }
+
 // POST /api/ai/analyze —— 日志/输出分析
 func aiAnalyze(db *sql.DB, secret string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
