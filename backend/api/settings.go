@@ -31,9 +31,34 @@ type CustomProvider struct {
 	APIKey  string `json:"-"`
 }
 
+// migrateLegacyProviderKey 将旧版单一 ai_api_key 持久化到按厂商密钥表（幂等，仅迁移一次）。
+// 旧版本只有 ai_api_key 一个密钥；若不写回 ai_provider_keys，保存新厂商时该密钥会被静默覆盖丢失。
+func migrateLegacyProviderKey(db *sql.DB) {
+	enc, _ := database.GetSetting(db, keyAIAPIKey)
+	if enc == "" {
+		return
+	}
+	baseURL, _ := database.GetSetting(db, keyAIBaseURL)
+	if baseURL == "" {
+		baseURL = defaultAIBaseURL
+	}
+	m := loadProviderKeys(db)
+	key := normalizeAIBaseURL(baseURL)
+	if _, ok := m[key]; ok {
+		return // 已迁移
+	}
+	m[key] = enc
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return
+	}
+	_ = database.SetSetting(db, keyAIProviderKeys, string(raw))
+}
+
 // GET /api/settings/ai —— 读取 AI 设置（绝不返回 API Key 原文）
 func getAiSettings(db *sql.DB, _ string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		migrateLegacyProviderKey(db)
 		baseURL, _ := database.GetSetting(db, keyAIBaseURL)
 		model, _ := database.GetSetting(db, keyAIModel)
 		validated, _ := database.GetSetting(db, keyAIValidated)
@@ -68,7 +93,7 @@ func getAiSettings(db *sql.DB, _ string) http.HandlerFunc {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"base_url":         baseURL,
 			"model":            model,
-			"has_api_key":      getProviderKey(db, baseURL) != "",
+			"has_api_key":      hasKeys[normalizeAIBaseURL(baseURL)],
 			"validated":        validated == "1",
 			"custom_providers": list,
 			"provider_keys":    hasKeys,
@@ -79,6 +104,8 @@ func getAiSettings(db *sql.DB, _ string) http.HandlerFunc {
 // POST /api/settings/ai —— 保存 AI 设置（API Key 加密存储）并校验连通性
 func saveAiSettings(db *sql.DB, secret string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// 先迁移旧版单密钥，防止下方覆盖 ai_api_key 时丢失该密钥
+		migrateLegacyProviderKey(db)
 		var in struct {
 			BaseURL    string `json:"base_url"`
 			Model      string `json:"model"`

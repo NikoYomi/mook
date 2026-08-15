@@ -12,7 +12,6 @@ import (
 	"mook/database"
 	"mook/utils"
 )
-
 // backupSettingsKeys 导出/还原允许携带的全部设置项
 var backupSettingsKeys = []string{keyAIBaseURL, keyAIModel, keyAIAPIKey, keyAIValidated, keyCustomProviders, keyAIProviderKeys}
 
@@ -108,14 +107,14 @@ func restoreBackup(db *sql.DB, secret string) http.HandlerFunc {
 			}
 			pt, err := utils.DecryptWithPassword(req.Password, req.Data)
 			if err != nil {
-				writeErr(w, http.StatusBadRequest, "备份密码错误或文件已损坏")
+				writeErr(w, http.StatusBadRequest, "备份密码错误，请重新输入")
 				return
 			}
 			plain = []byte(pt)
 		}
 		var in BackupPayload
 		if err := json.Unmarshal(plain, &in); err != nil {
-			writeErr(w, http.StatusBadRequest, "备份文件格式错误")
+			writeErr(w, http.StatusBadRequest, "备份文件已损坏或不是有效的 Mook 备份")
 			return
 		}
 		if in.Version != 1 {

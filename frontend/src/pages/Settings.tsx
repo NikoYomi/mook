@@ -78,8 +78,9 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   const [accountMsg, setAccountMsg] = useState('')
   const [accountError, setAccountError] = useState('')
   const [pwdVerified, setPwdVerified] = useState(false)
-  const [pwdFormOpen, setPwdFormOpen] = useState(false)
   const [verifyBusy, setVerifyBusy] = useState(false)
+  // 修改登录密码弹窗
+  const [pwdChangeOpen, setPwdChangeOpen] = useState(false)
 
   // 备份
   const importRef = useRef<HTMLInputElement>(null)
@@ -339,6 +340,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       setNewPassword('')
       setConfirmPassword('')
       setAccountMsg('密码已更新')
+      setPwdChangeOpen(false)
     } catch (err) {
       setAccountError(err instanceof Error ? err.message : '修改失败')
     } finally {
@@ -385,6 +387,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
     setPwdBusy(true)
     setBackupMsg('')
     setBackupError('')
+    setPwdError('')
     try {
       const res = await api.exportBackup(pwd)
       const blob = new Blob([JSON.stringify(res)], { type: 'application/json' })
@@ -401,7 +404,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       setPwdModal(null)
       setBackupMsg('备份已导出（已用密码加密，请妥善保管密码）')
     } catch (err) {
-      setBackupError(err instanceof Error ? err.message : '导出失败')
+      setPwdError(err instanceof Error ? err.message : '导出失败')
     } finally {
       setPwdBusy(false)
     }
@@ -445,6 +448,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
     setPwdBusy(true)
     setBackupMsg('')
     setBackupError('')
+    setPwdError('')
     try {
       const res = await api.restoreBackup({ password: pwd, data: pendingImportData })
       await Promise.all([loadServers(), refreshAi()])
@@ -452,7 +456,8 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       setPendingImportData(null)
       setBackupMsg(`还原成功：${res.servers_restored} 台服务器、AI 设置与常用命令已恢复`)
     } catch (err) {
-      setBackupError(err instanceof Error ? err.message : '导入失败')
+      // 错误显示在弹窗内，便于用户看到密码错误后重新输入
+      setPwdError(err instanceof Error ? err.message : '还原失败')
     } finally {
       setPwdBusy(false)
       if (importRef.current) importRef.current.value = ''
@@ -746,94 +751,19 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                 <button
                   type="button"
                   onClick={() => {
-                    setPwdFormOpen((v) => !v)
-                    if (!pwdFormOpen) {
-                      setPwdVerified(false)
-                      setOldPassword('')
-                      setNewPassword('')
-                      setConfirmPassword('')
-                      setAccountMsg('')
-                      setAccountError('')
-                    }
+                    setPwdChangeOpen(true)
+                    setPwdVerified(false)
+                    setOldPassword('')
+                    setNewPassword('')
+                    setConfirmPassword('')
+                    setAccountMsg('')
+                    setAccountError('')
                   }}
                   className="btn-danger w-full flex-none"
-                  title={pwdFormOpen ? '收起修改密码表单' : '修改登录密码'}
+                  title="通过弹窗验证当前密码后设置新密码"
                 >
-                  {pwdFormOpen ? '收起' : '修改登录密码'}
+                  修改登录密码
                 </button>
-                {pwdFormOpen && (
-                  <form onSubmit={pwdVerified ? handlePassword : handleVerify} className="space-y-3 rounded-lg border border-line bg-panel-2 p-3">
-                <label className="block">
-                  <span className="label">{pwdVerified ? '当前密码（已验证）' : '验证当前密码'}</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="password"
-                      value={oldPassword}
-                      onChange={(e) => setOldPassword(e.target.value)}
-                      className="input flex-1"
-                      autoComplete="current-password"
-                      disabled={pwdVerified}
-                    />
-                    {!pwdVerified && (
-                      <button
-                        type="submit"
-                        disabled={verifyBusy}
-                        className="btn-primary flex-none"
-                        title="验证当前密码是否正确"
-                      >
-                        {verifyBusy ? (
-                          <>
-                            <LoaderIcon size={14} className="animate-spin" /> 验证中…
-                          </>
-                        ) : (
-                          '验证'
-                        )}
-                      </button>
-                    )}
-                  </div>
-                </label>
-                {pwdVerified && (
-                  <>
-                    <label className="block">
-                      <span className="label">新密码（至少 6 位）</span>
-                      <input
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="input"
-                        autoComplete="new-password"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="label">确认新密码</span>
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="input"
-                        autoComplete="new-password"
-                      />
-                    </label>
-                    <div className="flex justify-end pt-1">
-                      <button
-                        type="submit"
-                        disabled={accountBusy}
-                        className="btn-ghost"
-                        title="确认修改密码"
-                      >
-                        {accountBusy ? (
-                          <>
-                            <LoaderIcon size={14} className="animate-spin" /> 保存中…
-                          </>
-                        ) : (
-                          '确认修改'
-                        )}
-                      </button>
-                    </div>
-                  </>
-                )}
-                  </form>
-                )}
                 </div>
 
                 {accountError && (
@@ -1186,9 +1116,9 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                 </label>
               )}
               {pwdError && (
-                <div className="flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-danger">
-                  <AlertIcon size={14} className="shrink-0 text-danger" />
-                  {pwdError}
+                <div className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-dim px-3 py-2 text-[13px] text-danger">
+                  <AlertIcon size={14} className="mt-0.5 shrink-0 text-danger" />
+                  <span className="min-w-0 break-all">{pwdError}</span>
                 </div>
               )}
               <div className="flex justify-end gap-2 pt-1">
@@ -1206,6 +1136,130 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                     '解密并还原'
                   )}
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 修改登录密码弹窗 */}
+      {pwdChangeOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !verifyBusy && !accountBusy) setPwdChangeOpen(false)
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="修改登录密码"
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl shadow-black/60"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-line px-5 py-4">
+              <h3 className="text-[15px] font-semibold text-ink">修改登录密码</h3>
+              <p className="mt-0.5 text-xs text-soft">
+                {pwdVerified ? '已验证当前密码，请设置新密码' : '请输入当前密码以验证身份'}
+              </p>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (pwdVerified) handlePassword(e)
+                else handleVerify(e)
+              }}
+              className="space-y-3 px-5 py-4"
+            >
+              {!pwdVerified ? (
+                <label className="block">
+                  <span className="label">当前密码</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="password"
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      className="input flex-1"
+                      autoComplete="current-password"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={verifyBusy}
+                      className="btn-primary flex-none"
+                      title="验证当前密码是否正确"
+                    >
+                      {verifyBusy ? (
+                        <>
+                          <LoaderIcon size={14} className="animate-spin" /> 验证中…
+                        </>
+                      ) : (
+                        '验证'
+                      )}
+                    </button>
+                  </div>
+                </label>
+              ) : (
+                <>
+                  <label className="block">
+                    <span className="label">新密码（至少 6 位）</span>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="input"
+                      autoComplete="new-password"
+                      autoFocus
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="label">确认新密码</span>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="input"
+                      autoComplete="new-password"
+                    />
+                  </label>
+                </>
+              )}
+              {(accountError || accountMsg) && (
+                <div
+                  className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-[13px] ${
+                    accountError
+                      ? 'border-danger/25 bg-danger-dim text-danger'
+                      : 'border-accent/25 bg-accent-dim text-accent-bright'
+                  }`}
+                >
+                  {accountError ? (
+                    <AlertIcon size={14} className="mt-0.5 shrink-0 text-danger" />
+                  ) : (
+                    <CheckCircleIcon size={14} className="mt-0.5 shrink-0" />
+                  )}
+                  <span className="min-w-0 break-all">{accountError || accountMsg}</span>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPwdChangeOpen(false)}
+                  disabled={verifyBusy || accountBusy}
+                  className="btn-ghost"
+                >
+                  取消
+                </button>
+                {pwdVerified && (
+                  <button type="submit" disabled={accountBusy} className="btn-primary">
+                    {accountBusy ? (
+                      <>
+                        <LoaderIcon size={14} className="animate-spin" /> 保存中…
+                      </>
+                    ) : (
+                      '确认修改'
+                    )}
+                  </button>
+                )}
               </div>
             </form>
           </div>
