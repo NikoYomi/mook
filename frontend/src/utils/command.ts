@@ -1,12 +1,27 @@
-/** 从 AI 回复中提取可执行命令：优先取代码块首行，其次取第一个非中文句子 */
+/** 从代码块内容中清理出真实命令：去空行/注释/提示符/含大量中文的说明行 */
+function cleanCommandBlock(code: string): string {
+  const out: string[] = []
+  for (const raw of code.split('\n')) {
+    const line = raw.trim()
+    if (!line) continue
+    if (line.startsWith('#')) continue
+    const bare = line.replace(/^[#$]\s*/, '').trim()
+    if (!bare) continue
+    const cn = bare.match(/[\u4e00-\u9fa5]/g)?.length ?? 0
+    if (cn > 0 && cn / bare.length > 0.3) continue
+    out.push(bare)
+  }
+  return out.join('\n')
+}
+
+/** 从 AI 回复中提取可执行命令：优先取第一个命令代码块，其次取第一个非中文句子 */
 export function extractCommand(text: string): string {
-  const fence = text.match(/```(?:bash|sh|shell)?\s*\n([\s\S]*?)```/)
-  if (fence) {
-    const lines = fence[1]
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean)
-    return lines[0] ?? ''
+  if (!text) return ''
+  const re = /```(?:bash|sh|shell|console)?\s*\n([\s\S]*?)```/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const cmd = cleanCommandBlock(m[1])
+    if (cmd) return cmd
   }
   const lines = text
     .split('\n')

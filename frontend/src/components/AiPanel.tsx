@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { extractCommand } from '../utils/command'
 import {
@@ -12,14 +12,26 @@ import {
 
 interface Props {
   onRun?: (command: string) => void
+  registerClear?: (fn: () => void) => void
 }
 
-export default function AiPanel({ onRun }: Props) {
+export default function AiPanel({ onRun, registerClear }: Props) {
   const [input, setInput] = useState('')
   const [output, setOutput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+
+  // 终端连接断开时，父级会调用该函数清空输出
+  const clear = useCallback(() => {
+    setOutput('')
+    setError('')
+  }, [])
+
+  useEffect(() => {
+    registerClear?.(clear)
+    return () => registerClear?.(() => {})
+  }, [registerClear, clear])
 
   async function run() {
     setError('')

@@ -29,6 +29,7 @@ interface Props {
   serverName: string
   registerExec?: (key: number, fn: (cmd: string) => void) => void
   unregisterExec?: (key: number) => void
+  onDisconnect?: () => void
 }
 
 type Status = 'connecting' | 'connected' | 'closed'
@@ -39,6 +40,7 @@ export default function TerminalTab({
   serverName,
   registerExec,
   unregisterExec,
+  onDisconnect,
 }: Props) {
   const t = useI18n()
   const elRef = useRef<HTMLDivElement>(null)
@@ -100,6 +102,9 @@ export default function TerminalTab({
     const ws = new WebSocket(`${proto}://${window.location.host}/ws/terminal?serverId=${serverId}`)
     setStatus('connecting')
     setError('')
+
+    // 组件卸载 / 重连重建会话时主动关闭，不视为「断开」，不触发 onDisconnect
+    let intentionalClose = false
 
     const send = (obj: unknown) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj))
@@ -185,9 +190,11 @@ export default function TerminalTab({
         } else if (m.type === 'error') {
           setStatus('closed')
           setError(m.message || '连接失败')
+          onDisconnect?.()
         } else if (m.type === 'closed') {
           setStatus('closed')
           setError(m.reason || '连接已断开')
+          onDisconnect?.()
         }
       } catch {
         /* 忽略无法解析的消息 */
@@ -196,10 +203,12 @@ export default function TerminalTab({
     ws.onclose = () => {
       setStatus('closed')
       setError((prev) => prev || '连接已断开')
+      if (!intentionalClose) onDisconnect?.()
     }
     ws.onerror = () => {
       setStatus('closed')
       setError('无法连接服务器')
+      onDisconnect?.()
     }
 
     // 供右侧「常用命令 / AI」把命令写入当前会话
@@ -253,6 +262,7 @@ export default function TerminalTab({
       dataDisposer.dispose()
       ro.disconnect()
       unregisterExec?.(tabKey)
+      intentionalClose = true
       ws.close()
       term.dispose()
       termRef.current = null

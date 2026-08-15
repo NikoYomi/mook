@@ -112,7 +112,7 @@ func aiAnalyze(db *sql.DB, secret string) http.HandlerFunc {
 			return
 		}
 		messages := []ai.Message{
-			{Role: "system", Content: "你是一名资深 Linux 运维工程师。请分析用户提供的服务日志、命令输出或问题描述。请严格按以下模板分节回答，使用中文：\n\n分析原因\n解决办法\n如何执行\n涉及相关命令\n\n要求：分析要准确具体；解决办法给出可操作步骤；如何执行部分给出需要执行的命令并用代码块包裹；如无需执行命令则注明。回答保持简洁，不要输出与模板无关的内容。"},
+			{Role: "system", Content: ai.SystemPrompt},
 			{Role: "user", Content: req.Content},
 		}
 		reply, err := client.Chat(messages)

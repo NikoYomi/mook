@@ -72,6 +72,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
   const keyRef = useRef(0)
   const execRef = useRef<Map<number, (cmd: string) => void>>(new Map())
   const toastTimer = useRef<number | undefined>(undefined)
+  const aiClearRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     load()
@@ -162,6 +163,15 @@ export default function Terminal({ serverId }: { serverId?: string }) {
     },
     [tabs, active, showToast],
   )
+
+  // 终端连接断开时清空 AI 面板的输出
+  const onDisconnect = useCallback(() => {
+    aiClearRef.current?.()
+  }, [])
+
+  const registerAiClear = useCallback((fn: () => void) => {
+    aiClearRef.current = fn
+  }, [])
 
   const activeTab = tabs[active]
   const activeServerId = activeTab ? activeTab.serverId : null
@@ -305,6 +315,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
                   serverName={t.name}
                   registerExec={registerExec}
                   unregisterExec={unregisterExec}
+                  onDisconnect={onDisconnect}
                 />
               </div>
             ))
@@ -344,7 +355,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
               {sideTab === 'commands' ? (
                 <CommonCommands onRun={runCommand} />
               ) : (
-                <AiPanel onRun={runCommand} />
+                <AiPanel onRun={runCommand} registerClear={registerAiClear} />
               )}
             </div>
           </aside>
@@ -433,7 +444,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.2.6</span>
+        <span>v0.2.7</span>
       </footer>
     </div>
   )
