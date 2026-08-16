@@ -101,30 +101,60 @@ func serverStatsHandler(db *sql.DB, secret string) http.HandlerFunc {
 		password, _ := utils.Decrypt(secret, row.PasswordEnc)
 		privateKey, _ := utils.Decrypt(secret, row.PrivateKeyEnc)
 
-		start := time.Now()
-		client, err := sshx.Dial(sshx.Config{
-			Host:       row.Host,
-			Port:       row.Port,
-			Username:   row.Username,
-			Password:   password,
-			PrivateKey: privateKey,
-		})
-		if err != nil {
-			writeErr(w, http.StatusBadGateway, "SSH 连接失败："+err.Error())
-			return
-		}
-		defer client.Close()
-		latency := time.Since(start)
-
-		out, err := runCommand(client, statScript)
-		if err != nil {
-			writeErr(w, http.StatusBadGateway, "采集系统状态失败："+err.Error())
-			return
+		// 优先复用池中的连接；没有则新建并归还池（避免频繁 SSH 握手）
+		client := statsPool.get(serverID)
+		if client == nil {
+			client, err = sshx.Dial(sshx.Config{
+				Host:       row.Host,
+				Port:       row.Port,
+				Username:   row.Username,
+				Password:   password,
+				PrivateKey: privateKey,
+			})
+			if err != nil {
+				writeErr(w, http.StatusBadGateway, "SSH 连接失败："+err.Error())
+				return
+			}
+			statsPool.put(serverID, client)
 		}
 
-		stats := parseStatOutput(out, serverID, latency)
+		stats, serr := collectStats(client, serverID, statScript)
+		if serr != nil {
+			// 复用连接可能已失效（服务器重启/会话被踢）：丢弃后新建一次重试
+			statsPool.drop(serverID)
+			client2, derr := sshx.Dial(sshx.Config{
+				Host:       row.Host,
+				Port:       row.Port,
+				Username:   row.Username,
+				Password:   password,
+				PrivateKey: privateKey,
+			})
+			if derr != nil {
+				writeErr(w, http.StatusBadGateway, "SSH 连接失败："+derr.Error())
+				return
+			}
+			statsPool.put(serverID, client2)
+			stats, serr = collectStats(client2, serverID, statScript)
+			if serr != nil {
+				writeErr(w, http.StatusBadGateway, "采集系统状态失败："+serr.Error())
+				return
+			}
+		}
+
 		writeJSON(w, http.StatusOK, stats)
 	}
+}
+
+// collectStats 在连接上执行采集脚本并解析。
+// latency 在命令执行完成后测量：反映真实的「命令往返 + 远端执行」延迟
+// （连接池复用后连接获取仅微秒级，若在命令前测量会得到 0ms 的假延迟）。
+func collectStats(client *xssh.Client, serverID int64, script string) (*serverStats, error) {
+	start := time.Now()
+	out, err := runCommand(client, script)
+	if err != nil {
+		return nil, err
+	}
+	return parseStatOutput(out, serverID, time.Since(start)), nil
 }
 
 // runCommand 在远端执行命令并返回输出

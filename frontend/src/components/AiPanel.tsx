@@ -1,90 +1,52 @@
-import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
-import { extractCommand } from '../utils/command'
-import {
-  AlertIcon,
-  CheckIcon,
-  CopyIcon,
-  LoaderIcon,
-  SendIcon,
-  SparklesIcon,
-} from './icons'
+import { useAiPanel, panelKey } from '../store/aiPanel'
+import AiMarkdown from './AiMarkdown'
+import { AlertIcon, LoaderIcon, SparklesIcon } from './icons'
 
 interface Props {
   onRun?: (command: string) => void
-  registerClear?: (fn: () => void) => void
+  // 当前激活的终端标签 key：每个标签拥有独立的 AI 对话，切换标签时跟随变化
+  ownerKey: number | null
 }
 
-export default function AiPanel({ onRun, registerClear }: Props) {
-  const [input, setInput] = useState('')
-  const [output, setOutput] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [copied, setCopied] = useState(false)
-
-  // 终端连接断开时，父级会调用该函数清空输出
-  const clear = useCallback(() => {
-    setOutput('')
-    setError('')
-  }, [])
-
-  useEffect(() => {
-    registerClear?.(clear)
-    return () => registerClear?.(() => {})
-  }, [registerClear, clear])
+export default function AiPanel({ onRun, ownerKey }: Props) {
+  const key = panelKey(ownerKey)
+  const input = useAiPanel((s) => s.byKey[key]?.input ?? '')
+  const output = useAiPanel((s) => s.byKey[key]?.output ?? '')
+  const error = useAiPanel((s) => s.byKey[key]?.error ?? '')
+  const busy = useAiPanel((s) => s.byKey[key]?.busy ?? false)
+  const setState = useAiPanel((s) => s.setState)
 
   async function run() {
-    setError('')
-    setOutput('')
+    setState(ownerKey, { error: '', output: '' })
     if (!input.trim()) {
-      setError('请先粘贴日志或命令输出')
+      setState(ownerKey, { error: '请先粘贴日志或命令输出' })
       return
     }
-    setBusy(true)
+    setState(ownerKey, { busy: true })
     try {
       const res = await api.aiAnalyze(input)
-      setOutput(res.result)
+      setState(ownerKey, { output: res.result })
     } catch (err) {
-      setError(err instanceof Error ? err.message : '调用失败')
+      setState(ownerKey, { error: err instanceof Error ? err.message : '调用失败' })
     } finally {
-      setBusy(false)
+      setState(ownerKey, { busy: false })
     }
   }
-
-  async function copyOutput() {
-    if (!output) return
-    try {
-      await navigator.clipboard.writeText(output)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* 剪贴板不可用时静默失败 */
-    }
-  }
-
-  function runInTerminal() {
-    const cmd = extractCommand(output)
-    if (cmd) onRun?.(cmd)
-  }
-
-  const canSend = Boolean(extractCommand(output))
 
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-line px-3 py-2.5">
         <div className="flex items-center gap-1.5 text-[13px] font-semibold text-ink">
           <SparklesIcon size={15} className="text-accent" />
-          AI 助手 · 分析日志
+          Mook AI助手
         </div>
-        <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          不懂就问，复制粘贴给 AI，让它回答你。
-        </p>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-3">
         <textarea
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => setState(ownerKey, { input: e.target.value })}
           rows={7}
           className="input flex-none resize-none font-mono text-xs leading-relaxed"
           placeholder="例如：我运行xx命令，现在输出（粘贴输出），这是什么问题，如何解决？"
@@ -119,28 +81,6 @@ export default function AiPanel({ onRun, registerClear }: Props) {
             <span className="text-[11px] font-medium uppercase tracking-wide text-faint">
               {busy ? '处理中' : output ? '结果' : '输出'}
             </span>
-            {output && (
-              <div className="flex items-center gap-1">
-                {canSend && (
-                  <button
-                    onClick={runInTerminal}
-                    className="flex cursor-pointer items-center gap-1 rounded-md border border-accent/25 bg-accent-dim px-2 py-1 text-[11px] text-accent-bright transition-colors duration-150 hover:bg-accent/20"
-                    title="把命令发送到当前终端"
-                  >
-                    <SendIcon size={12} />
-                    发送到终端
-                  </button>
-                )}
-                <button
-                  onClick={copyOutput}
-                  className="icon-btn h-6 w-6"
-                  title="复制结果"
-                  aria-label="复制结果"
-                >
-                  {copied ? <CheckIcon size={13} className="text-accent" /> : <CopyIcon size={13} />}
-                </button>
-              </div>
-            )}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {busy ? (
@@ -148,10 +88,10 @@ export default function AiPanel({ onRun, registerClear }: Props) {
                 <LoaderIcon size={14} className="animate-spin text-accent" />
                 正在调用 AI…
               </div>
+            ) : output ? (
+              <AiMarkdown text={output} onSend={(cmd) => onRun?.(cmd)} />
             ) : (
-              <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-soft">
-                {output || '分析结果将显示在这里'}
-              </pre>
+              <div className="text-xs text-faint">分析结果将显示在这里</div>
             )}
           </div>
         </div>

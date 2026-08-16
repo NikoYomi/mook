@@ -125,6 +125,16 @@ html[data-theme='light'] .btn-primary {
   background: transparent;
 }
 
+/* 终端区域：隐藏原生滚动条，保留滚轮 / Shift+滚轮滚动历史，避免滚动条遮挡终端输出 */
+.xterm .xterm-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.xterm .xterm-viewport {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

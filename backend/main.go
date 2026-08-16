@@ -53,7 +53,7 @@ func main() {
 	router := api.NewRouter(cfg, db, secret)
 
 	addr := ":" + cfg.Port
-	log.Printf("Mook v0.2.7 已启动: http://localhost:%s", cfg.Port)
+	log.Printf("Mook v0.2.8 已启动: http://localhost:%s", cfg.Port)
 	log.Printf("数据目录: %s", cfg.DataDir)
 	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatalf("服务启动失败: %v", err)

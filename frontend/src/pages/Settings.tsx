@@ -205,6 +205,8 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       setBaseUrl(p.baseUrl)
       setCustomName('')
       setModelManual(id === 'custom')
+      // 切换厂商时重置默认模型为该厂商的第一个预设模型（避免残留上一个厂商的模型）
+      if (p.models.length > 0) setModel(p.models[0])
     }
   }
 
@@ -226,6 +228,8 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
         setLiveModels(res.models)
         setModelsOk(true)
         setModelManual(false)
+        // 当前 model 不在新列表中时，默认选中该厂商的第一个模型（避免残留上一个厂商的模型）
+        if (!res.models.includes(model)) setModel(res.models[0])
         setModelsMsg(`获取到 ${res.models.length} 个可用模型`)
       }
     } catch (err) {
@@ -951,7 +955,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-soft transition-colors duration-150 hover:text-ink"
                 >
                   <GithubIcon size={15} />
-                  v0.2.7
+                  v0.2.8
                 </a>
               </div>
 

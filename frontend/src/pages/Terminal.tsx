@@ -7,6 +7,7 @@ import ServerInfo from '../components/ServerInfo'
 import FileManager from '../components/FileManager'
 import TerminalTab from '../terminal/TerminalTab'
 import { useServers } from '../store/servers'
+import { useAiPanel } from '../store/aiPanel'
 import { useI18n } from '../utils/i18n'
 import {
   AlertIcon,
@@ -70,9 +71,8 @@ export default function Terminal({ serverId }: { serverId?: string }) {
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
   const keyRef = useRef(0)
-  const execRef = useRef<Map<number, (cmd: string) => void>>(new Map())
+  const execRef = useRef<Map<number, (cmd: string) => boolean>>(new Map())
   const toastTimer = useRef<number | undefined>(undefined)
-  const aiClearRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     load()
@@ -124,6 +124,8 @@ export default function Terminal({ serverId }: { serverId?: string }) {
     const idx = tabs.findIndex((t) => t.key === key)
     if (idx < 0) return
     execRef.current.delete(key)
+    // 关闭该终端标签：删除它自己的 AI 对话（每个标签的 AI 状态互相独立）
+    useAiPanel.getState().remove(key)
     const next = tabs.filter((t) => t.key !== key)
     if (next.length === 0) {
       setTabs([])
@@ -138,7 +140,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
     setActive(newActive)
   }
 
-  const registerExec = useCallback((key: number, fn: (cmd: string) => void) => {
+  const registerExec = useCallback((key: number, fn: (cmd: string) => boolean) => {
     execRef.current.set(key, fn)
   }, [])
 
@@ -158,19 +160,20 @@ export default function Terminal({ serverId }: { serverId?: string }) {
         showToast('终端尚未就绪，请稍候', 'err')
         return
       }
-      fn(cmd)
-      showToast(`已发送：${cmd.trim().split('\n')[0]}`)
+      // 仅在真正写入终端成功时才提示「已发送」，避免连接未就绪时误报成功
+      const sent = fn(cmd)
+      if (sent) {
+        showToast(`已发送：${cmd.trim().split('\n')[0]}`)
+      } else {
+        showToast('终端连接未就绪，命令未发送，请稍后重试', 'err')
+      }
     },
     [tabs, active, showToast],
   )
 
-  // 终端连接断开时清空 AI 面板的输出
-  const onDisconnect = useCallback(() => {
-    aiClearRef.current?.()
-  }, [])
-
-  const registerAiClear = useCallback((fn: () => void) => {
-    aiClearRef.current = fn
+  // 终端连接断开时删除该标签的 AI 对话
+  const onDisconnect = useCallback((tabKey: number) => {
+    useAiPanel.getState().remove(tabKey)
   }, [])
 
   const activeTab = tabs[active]
@@ -355,7 +358,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
               {sideTab === 'commands' ? (
                 <CommonCommands onRun={runCommand} />
               ) : (
-                <AiPanel onRun={runCommand} registerClear={registerAiClear} />
+                <AiPanel onRun={runCommand} ownerKey={activeTab?.key ?? null} />
               )}
             </div>
           </aside>
@@ -444,7 +447,7 @@ export default function Terminal({ serverId }: { serverId?: string }) {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.2.7</span>
+        <span>v0.2.8</span>
       </footer>
     </div>
   )

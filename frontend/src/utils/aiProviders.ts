@@ -38,6 +38,18 @@ export const AI_PROVIDERS: AIProvider[] = [
     models: ['glm-4.5', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4-long'],
   },
   {
+    id: 'mimo',
+    name: '小米 Mimo',
+    baseUrl: 'https://api.xiaomimimo.com/v1',
+    models: ['mimo-v2.5-pro'],
+  },
+  {
+    id: 'qwen',
+    name: '通义千问（Qwen）',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-flash'],
+  },
+  {
     id: 'ollama',
     name: 'Ollama（本地）',
     baseUrl: 'http://localhost:11434/v1',

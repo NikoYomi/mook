@@ -162,7 +162,11 @@ func saveAiSettings(db *sql.DB, secret string) http.HandlerFunc {
 		var verr string
 		if apiKey != "" {
 			client := ai.NewClient(baseURL, apiKey, model)
-			if _, err := client.Chat([]ai.Message{{Role: "user", Content: "ping"}}); err == nil {
+			// 优先用模型列表接口验证（GET /models，快、不消耗 token）；
+			// 少数服务不提供 /models 时回退到一次最小对话验证。
+			if _, err := client.ListModels(); err == nil {
+				validated = true
+			} else if _, err := client.Chat([]ai.Message{{Role: "user", Content: "ping"}}); err == nil {
 				validated = true
 			} else {
 				verr = err.Error()

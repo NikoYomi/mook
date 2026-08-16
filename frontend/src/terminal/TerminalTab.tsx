@@ -3,6 +3,7 @@ import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { AlertIcon, LayersIcon, RefreshIcon } from '../components/icons'
 import { useI18n } from '../utils/i18n'
+import { copyText } from '../utils/clipboard'
 import { useSettings } from '../store/settings'
 import { BACKGROUNDS, bgStyle, CYCLE_ORDER, XTERM_BG_CLASSIC, XTERM_BG_TEXTURE } from './backgrounds'
 
@@ -27,9 +28,9 @@ interface Props {
   tabKey: number
   serverId: number
   serverName: string
-  registerExec?: (key: number, fn: (cmd: string) => void) => void
+  registerExec?: (key: number, fn: (cmd: string) => boolean) => void
   unregisterExec?: (key: number) => void
-  onDisconnect?: () => void
+  onDisconnect?: (tabKey: number) => void
 }
 
 type Status = 'connecting' | 'connected' | 'closed'
@@ -179,6 +180,11 @@ export default function TerminalTab({
     ws.onopen = () => {
       setStatus('connected')
       sendResize()
+      // 补发连接建立前排队的命令
+      if (queuedCmds.length > 0) {
+        writeInput(queuedCmds.join('\n'))
+        queuedCmds = []
+      }
       term.focus()
     }
     ws.onmessage = (ev) => {
@@ -190,11 +196,11 @@ export default function TerminalTab({
         } else if (m.type === 'error') {
           setStatus('closed')
           setError(m.message || '连接失败')
-          onDisconnect?.()
+          onDisconnect?.(tabKey)
         } else if (m.type === 'closed') {
           setStatus('closed')
           setError(m.reason || '连接已断开')
-          onDisconnect?.()
+          onDisconnect?.(tabKey)
         }
       } catch {
         /* 忽略无法解析的消息 */
@@ -203,22 +209,33 @@ export default function TerminalTab({
     ws.onclose = () => {
       setStatus('closed')
       setError((prev) => prev || '连接已断开')
-      if (!intentionalClose) onDisconnect?.()
+      if (!intentionalClose) onDisconnect?.(tabKey)
     }
     ws.onerror = () => {
       setStatus('closed')
       setError('无法连接服务器')
-      onDisconnect?.()
+      onDisconnect?.(tabKey)
     }
 
-    // 供右侧「常用命令 / AI」把命令写入当前会话
-    const exec = (cmd: string) => {
+    // 供右侧「常用命令 / AI」把命令写入当前会话；返回是否真正写入成功
+    let queuedCmds: string[] = []
+    const writeInput = (cmd: string) => {
+      for (const c of cmd + ' ') if (isPrintable(c)) echoTarget += c
+      send({ type: 'input', data: `${cmd}\r` })
+    }
+    const exec = (cmd: string): boolean => {
       if (ws.readyState === WebSocket.OPEN) {
-        for (const c of cmd + ' ') if (isPrintable(c)) echoTarget += c
-        send({ type: 'input', data: `${cmd}\r` })
+        writeInput(cmd)
+        // 命令写入后把键盘焦点还给终端，方便继续输入
+        term.focus()
+        return true
       }
-      // 命令写入后把键盘焦点还给终端，方便继续输入
-      term.focus()
+      // 连接尚未建立（刚打开标签/刚切换）：排队，等 onopen 后补发
+      if (ws.readyState === WebSocket.CONNECTING) {
+        queuedCmds.push(cmd)
+        return true
+      }
+      return false
     }
     registerExec?.(tabKey, exec)
 
@@ -234,7 +251,7 @@ export default function TerminalTab({
       if (e.type !== 'keydown') return true
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
         const sel = term.getSelection()
-        if (sel) navigator.clipboard.writeText(sel).catch(() => {})
+        if (sel) copyText(sel)
         return false
       }
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {

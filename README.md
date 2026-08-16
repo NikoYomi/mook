@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.2.7-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.2.8-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.2.7** 
+**当前版本：v0.2.8** 
 
 > 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
@@ -224,7 +224,8 @@ mook/
 - ✅ v0.2.2 —— 服务器拖拽排序 / 常用命令使用计数与置顶 / 请求日志
 - ✅ v0.2.3 —— Docker Hub 双源发布 / 按钮提示 / 终端页脚与内边距
 - ✅ v0.2.4 —— 登录页品牌 / 下拉宽度修正 / 新增终端背景
-- ✅ v0.2.7 —— Mook 助手提示词升级 / 命令精准提取 / 断开自动清空 AI 输出（当前）
+- ✅ v0.2.7 —— Mook 助手提示词升级 / 命令精准提取 / 断开自动清空 AI 输出
+- ✅ v0.2.8 —— AI 对话按标签隔离 / 服务器延迟与信息修复 / AI 富文本输出与命令块发送 / 新增厂商（当前）
 - ✅ v0.2.6 —— 备份跨环境还原修复（凭据随备份重加密）/ 提示改悬浮 Toast
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
@@ -233,6 +234,19 @@ mook/
 ---
 
 ## 📄 更新日志
+
+### v0.2.8
+
+- **AI 对话按终端标签隔离**：每个终端标签拥有独立 AI 对话，切换标签时 AI 面板跟随显示当前标签自己的对话；关闭标签 / 连接断开时删除其对话，修复多标签并发分析互相覆盖导致的输出断流 / 不完整 / 格式错乱
+- **服务器延迟与信息修复**：延迟改为命令执行完成后测量（真实往返，不再恒为 0）；切换标签时服务器信息按服务器缓存立即显示，不再跳动 / 闪空
+- **AI 设置模型下拉修复**：切换厂商 / 获取模型列表后不再残留上一个厂商的模型
+- **AI 输出富文本渲染**：markdown 符号不再裸显示；命令代码块高亮为可点击卡片，**点击即发送到终端**（可自主选择要发送的命令）；移除「发送到终端」与「复制结果」按钮
+- **AI 输出 / 发送健壮性**：连接未就绪时不再误报「已发送」，命令排队连接建立后自动补发
+- **终端滚动条优化**：隐藏 xterm 原生滚动条，内容多时不再遮挡终端输出
+- **新增内置 AI 厂商**：小米 Mimo、通义千问；顶部「AI终端」标题支持显示 Mimo
+- **AI 助手面板标题精简**：仅保留「Mook AI助手」
+- **发送到终端识别更准**：提示词限定整个回答最多一个命令代码块并放末尾；`extractCommand` 优先取末尾命令块
+- 服务器信息轮询 3s → 1s（后端 per-server SSH 连接池复用）
 
 ### v0.2.7
 

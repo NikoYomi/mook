@@ -14,15 +14,17 @@ function cleanCommandBlock(code: string): string {
   return out.join('\n')
 }
 
-/** 从 AI 回复中提取可执行命令：优先取第一个命令代码块，其次取第一个非中文句子 */
+/** 从 AI 回复中提取可执行命令：优先取末尾的命令代码块（提示词约定推荐命令块放回答末尾），其次取第一个非中文句子 */
 export function extractCommand(text: string): string {
   if (!text) return ''
   const re = /```(?:bash|sh|shell|console)?\s*\n([\s\S]*?)```/g
   let m: RegExpExecArray | null
+  let lastCmd = ''
   while ((m = re.exec(text)) !== null) {
     const cmd = cleanCommandBlock(m[1])
-    if (cmd) return cmd
+    if (cmd) lastCmd = cmd
   }
+  if (lastCmd) return lastCmd
   const lines = text
     .split('\n')
     .map((l) => l.trim())
@@ -40,6 +42,7 @@ export function extractCommand(text: string): string {
 export function friendlyModelName(model: string): string {
   const m = model.toLowerCase()
   if (m.includes('deepseek')) return 'DeepSeek'
+  if (m.includes('mimo')) return 'Mimo'
   if (m.includes('gpt')) return 'GPT'
   if (m.includes('qwen')) return 'Qwen'
   if (m.includes('glm')) return 'GLM'
