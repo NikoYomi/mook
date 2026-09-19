@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"mook/auth"
 	"mook/config"
@@ -61,6 +62,13 @@ func NewRouter(cfg *config.Config, db *sql.DB, secret string) http.Handler {
 
 func serveFrontend(cfg *config.Config) http.Handler {
 	dist := cfg.FrontendDir
+
+	// 外部访问前缀：独立部署为 "/"，飞牛 fnOS 统一网关下为 "/app/mook/"
+	baseHref := "/"
+	if cfg.BasePath != "" {
+		baseHref = cfg.BasePath + "/"
+	}
+
 	if _, err := os.Stat(dist); err != nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -71,10 +79,29 @@ func serveFrontend(cfg *config.Config) http.Handler {
 			http.NotFound(w, r)
 		})
 	}
+
+	indexPath := filepath.Join(dist, "index.html")
 	fileServer := http.FileServer(http.Dir(dist))
+
+	// serveIndex 输出 index.html，并注入 <base> 标签。
+	// 前端静态资源使用相对路径，API 与 WebSocket 通过 <base> 推导访问前缀，
+	// 因此同一份构建产物既能跑在根路径，也能跑在统一网关的子路径下。
+	serveIndex := func(w http.ResponseWriter, r *http.Request) {
+		raw, err := os.ReadFile(indexPath)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		html := strings.Replace(string(raw), "<head>", `<head>
+    <base href="`+baseHref+`" />`, 1)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		_, _ = w.Write([]byte(html))
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			http.ServeFile(w, r, filepath.Join(dist, "index.html"))
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			serveIndex(w, r)
 			return
 		}
 		if _, err := os.Stat(filepath.Join(dist, filepath.Clean(r.URL.Path))); err == nil {
@@ -82,6 +109,6 @@ func serveFrontend(cfg *config.Config) http.Handler {
 			return
 		}
 		// SPA 回退到 index.html
-		http.ServeFile(w, r, filepath.Join(dist, "index.html"))
+		serveIndex(w, r)
 	})
 }

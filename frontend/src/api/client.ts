@@ -1,3 +1,5 @@
+import { withBase } from './base'
+
 export interface Server {
   id: number
   name: string
@@ -104,7 +106,7 @@ export interface ServerStats {
 }
 
 async function doRequest<T>(path: string, options: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(withBase(path), {
     credentials: 'same-origin',
     ...options,
   })
@@ -159,7 +161,7 @@ export const api = {
   listFiles: (serverId: number, dir: string) =>
     request<FileListResult>(`/api/servers/${serverId}/files?path=${encodeURIComponent(dir)}`),
   downloadUrl: (serverId: number, filePath: string) =>
-    `/api/servers/${serverId}/files/download?path=${encodeURIComponent(filePath)}`,
+    withBase(`/api/servers/${serverId}/files/download?path=${encodeURIComponent(filePath)}`),
   uploadFile: (serverId: number, dir: string, file: File) => {
     const fd = new FormData()
     fd.append('file', file)

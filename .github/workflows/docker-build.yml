@@ -1,5 +1,8 @@
 name: Build & Push Docker Image
 
+# 仅负责构建并推送多架构镜像（linux/amd64 + linux/arm64）。
+# GitHub Release 的创建与产物上传由 release.yml 统一处理，此处不再介入，避免两个
+# workflow 在同一标签上竞争同一个 Release。
 on:
   push:
     branches:
@@ -11,9 +14,6 @@ on:
 env:
   DOCKER_USERNAME: nikoyomi
   IMAGE_NAME: mook
-
-permissions:
-  contents: write # 允许创建 Release
 
 jobs:
   build:
@@ -59,27 +59,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # 打 tag 时：从 README「更新日志」提取对应版本说明
-      - name: Extract release notes
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        run: |
-          TAG_NAME=${{ github.ref_name }}
-          awk -v tag="$TAG_NAME" '
-            $0 ~ "### " tag { flag=1; next }
-            flag && /^### / { exit }
-            flag { print }
-          ' README.md > release_notes.md
-          if [ ! -s release_notes.md ]; then
-            echo "Release $TAG_NAME" > release_notes.md
-          fi
-
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          body_path: release_notes.md
-          name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false

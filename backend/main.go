@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"mook/api"
 	"mook/auth"
@@ -52,10 +55,75 @@ func main() {
 	// 路由
 	router := api.NewRouter(cfg, db, secret)
 
-	addr := ":" + cfg.Port
-	log.Printf("Mook v0.2.8 已启动: http://localhost:%s", cfg.Port)
-	log.Printf("数据目录: %s", cfg.DataDir)
-	if err := http.ListenAndServe(addr, router); err != nil {
-		log.Fatalf("服务启动失败: %v", err)
+	// 外部访问前缀：仅在配置了 MOOK_BASE_PATH 时剥离。
+	// 飞牛 fnOS 统一网关会把 /app/mook/* 原样转发过来，需要还原成 /*。
+	var root http.Handler = router
+	if cfg.BasePath != "" {
+		root = stripBasePath(cfg.BasePath, router)
 	}
+
+	log.Printf("Mook v0.2.9 已启动: http://localhost:%s", cfg.Port)
+	log.Printf("数据目录: %s", cfg.DataDir)
+	if cfg.BasePath != "" {
+		log.Printf("外部访问前缀: %s", cfg.BasePath)
+	}
+
+	errCh := make(chan error, 2)
+
+	// 1) TCP 监听 —— 本机访问与独立 Docker 部署
+	go func() {
+		if err := http.ListenAndServe(":"+cfg.Port, root); err != nil {
+			errCh <- fmt.Errorf("HTTP 服务启动失败: %w", err)
+		}
+	}()
+
+	// 2) Unix Socket 监听 —— 飞牛 fnOS 统一网关（可选，配置 MOOK_SOCKET 后启用）
+	if cfg.SocketPath != "" {
+		if err := os.MkdirAll(filepath.Dir(cfg.SocketPath), 0o755); err != nil {
+			log.Fatalf("创建 Socket 目录失败: %v", err)
+		}
+		// 清理上次运行遗留的 Socket 文件，否则 Listen 会报 address already in use
+		_ = os.Remove(cfg.SocketPath)
+		ln, err := net.Listen("unix", cfg.SocketPath)
+		if err != nil {
+			log.Fatalf("监听 Unix Socket 失败: %v", err)
+		}
+		// 网关以独立身份访问 Socket，放宽到属主/同组可读写
+		if err := os.Chmod(cfg.SocketPath, 0o660); err != nil {
+			log.Printf("设置 Socket 权限失败: %v", err)
+		}
+		log.Printf("Unix Socket 已监听: %s", cfg.SocketPath)
+		go func() {
+			if err := http.Serve(ln, root); err != nil {
+				errCh <- fmt.Errorf("Unix Socket 服务退出: %w", err)
+			}
+		}()
+	}
+
+	if err := <-errCh; err != nil {
+		log.Fatalf("%v", err)
+	}
+}
+
+// stripBasePath 剥离外部访问前缀。
+// 前缀之外的路径一律 404，避免应用在子路径部署时被意外直接访问。
+func stripBasePath(prefix string, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == prefix || r.URL.Path == prefix+"/":
+			serveWithPath(w, r, "/", h)
+		case strings.HasPrefix(r.URL.Path, prefix+"/"):
+			serveWithPath(w, r, strings.TrimPrefix(r.URL.Path, prefix), h)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+func serveWithPath(w http.ResponseWriter, r *http.Request, path string, h http.Handler) {
+	r2 := r.Clone(r.Context())
+	r2.URL.Path = path
+	// RawPath 只在它是 Path 的合法编码时才生效，这里直接清空以 Path 为准
+	r2.URL.RawPath = ""
+	h.ServeHTTP(w, r2)
 }

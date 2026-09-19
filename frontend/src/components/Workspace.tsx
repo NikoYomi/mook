@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { withBase } from '../api/base'
 import { useAuth } from '../store/auth'
 import { useAi } from '../store/ai'
 import { useCommands } from '../store/commands'
@@ -111,7 +112,7 @@ export default function Workspace() {
             title="Mook 首页"
           >
             <img
-              src="/icon.png"
+              src={withBase('/icon.png')}
               alt="Mook"
               className="h-6 w-6 rounded-md object-cover"
             />

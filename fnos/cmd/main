@@ -1,0 +1,36 @@
+#!/bin/bash
+#
+# Mook · 飞牛 fnOS 生命周期脚本
+#
+# Docker 应用的启动/停止由飞牛 fnOS 依据 config/resource 中的 docker-project 处理，
+# 这里只需要准确返回运行状态。
+#
+# 退出码约定：
+#   0 = 成功 / 正在运行
+#   1 = 失败
+#   3 = 未运行
+
+CONTAINER_NAME="mook-fnos"
+
+is_running() {
+  docker inspect "$CONTAINER_NAME" 2>/dev/null | grep -q '"Status": "running"'
+}
+
+case "$1" in
+  start)
+    exit 0
+    ;;
+  stop)
+    exit 0
+    ;;
+  status)
+    if is_running; then
+      exit 0
+    fi
+    exit 3
+    ;;
+  *)
+    echo "Unknown command: $1" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+    ;;
+esac

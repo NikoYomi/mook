@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.2.8-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.2.9-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.2.8** 
+**当前版本：v0.2.9** 
 
 > 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
@@ -225,7 +225,8 @@ mook/
 - ✅ v0.2.3 —— Docker Hub 双源发布 / 按钮提示 / 终端页脚与内边距
 - ✅ v0.2.4 —— 登录页品牌 / 下拉宽度修正 / 新增终端背景
 - ✅ v0.2.7 —— Mook 助手提示词升级 / 命令精准提取 / 断开自动清空 AI 输出
-- ✅ v0.2.8 —— AI 对话按标签隔离 / 服务器延迟与信息修复 / AI 富文本输出与命令块发送 / 新增厂商（当前）
+- ✅ v0.2.8 —— AI 对话按标签隔离 / 服务器延迟与信息修复 / AI 富文本输出与命令块发送 / 新增厂商
+- ✅ v0.2.9 —— 飞牛 fnOS 应用包（.fpk）+ 统一网关接入 + 多平台 Release 产物（当前）
 - ✅ v0.2.6 —— 备份跨环境还原修复（凭据随备份重加密）/ 提示改悬浮 Toast
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
@@ -234,6 +235,14 @@ mook/
 ---
 
 ## 📄 更新日志
+
+### v0.2.9
+
+- **飞牛 fnOS 应用包**：新增 `fnos/` 打包目录，可构建 `.fpk` 安装包，支持在飞牛 fnOS 应用中心安装使用（`platform=all`，单包同时适配 x86 与 ARM）
+- **统一网关接入**：支持通过 fnOS 统一网关访问（复用系统访问域名、接入 NAS 登录态、免端口冲突），HTTP 与 WebSocket 均经网关转发；应用不占用宿主机端口
+- **子路径部署能力**：同一份前端构建产物既能在根路径运行，也能部署在 `/app/mook` 等子路径下；后端可额外监听 Unix Socket（`MOOK_SOCKET`），并按 `MOOK_BASE_PATH` 剥离访问前缀
+- **多平台发布**：打标签时自动构建 Windows / macOS（arm64 + amd64）/ Linux（amd64 + arm64）可执行文件与 fnOS 应用包，统一挂到 GitHub Release
+- **兼容性**：自建 Docker 部署**不受影响** —— 新增能力均为可选，`docker/docker-compose.yml` 未做改动
 
 ### v0.2.8
 
@@ -303,6 +312,26 @@ mook/
 ## 📄 License
 
 [MIT](LICENSE) © 2026 NikoYomi
+
+---
+
+## 🤝 开发 / 贡献指南
+
+欢迎贡献！请先阅读 `计划/AI开发规范.md` 了解项目约定。
+
+**快速开始**：
+1. Fork 本仓库
+2. 克隆到本地：`git clone https://github.com/你的用户名/mook.git`
+3. 按照「本地开发」部分启动前后端
+4. 创建功能分支：`git checkout -b feature/your-feature`
+5. 提交更改：`git commit -m "feat: add your feature"`
+6. 推送分支：`git push origin feature/your-feature`
+7. 创建 Pull Request
+
+**注意事项**：
+- 测试文件请放入 `测试环境/` 目录，不要放入 `项目/mook/`
+- 所有修改记录请写入 `计划/每日日志/` 目录
+- 推送前请确保代码可通过 `go build` 和 `tsc --noEmit` 检查
 
 ---
 

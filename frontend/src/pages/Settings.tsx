@@ -2,6 +2,7 @@ import type { FormEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Modal from '../components/Modal'
+import { withBase } from '../api/base'
 import { api, type BackupData, type CustomProviderSetting } from '../api/client'
 import { useAuth } from '../store/auth'
 import { useAi } from '../store/ai'
@@ -955,7 +956,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-soft transition-colors duration-150 hover:text-ink"
                 >
                   <GithubIcon size={15} />
-                  v0.2.8
+                  v0.2.9
                 </a>
               </div>
 
@@ -982,7 +983,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                 <div className="mt-4 grid grid-cols-2 gap-6">
                   <div className="flex flex-col items-center gap-1.5">
                     <img
-                      src="/wechat-qr.png"
+                      src={withBase('/wechat-qr.png')}
                       alt="微信赞赏码"
                       className="w-40 rounded-md border border-line bg-canvas/40 p-2"
                     />
@@ -990,7 +991,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   </div>
                   <div className="flex flex-col items-center gap-1.5">
                     <img
-                      src="/alipay-qr.png"
+                      src={withBase('/alipay-qr.png')}
                       alt="支付宝收款码"
                       className="w-40 rounded-md border border-line bg-canvas/40 p-2"
                     />

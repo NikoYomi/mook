@@ -1,0 +1,30 @@
+# Mook · 飞牛 fnOS 应用包编排文件
+#
+# 访问方式：统一网关（gatewayPrefix=/app/mook，gatewaySocket=app.sock）
+#   - 容器内服务监听 ${TRIM_APPDEST}/app.sock（挂载进容器后为 /app/target/app.sock）
+#   - 飞牛 fnOS 校验登录态后把 /app/mook/* 的请求（含 WebSocket）转发到该 Socket
+#   - 不发布宿主机端口，避免绕过网关的直连访问与端口冲突
+#
+# 如需临时排查问题，可取消下面 ports 段落的注释，即可通过 http://<NAS>:5866 直连。
+
+services:
+  mook:
+    image: nikoyomi/mook:latest
+    # 使用独立容器名，避免与用户自行 docker run 的 mook 容器冲突
+    container_name: mook-fnos
+    restart: unless-stopped
+    volumes:
+      # 应用数据（mook.db + secret.key）存放于应用私有目录，不暴露到文件管理器
+      - "${TRIM_PKGVAR}/data:/data"
+      # 统一网关 Socket 目录：容器在此目录创建 app.sock
+      - "${TRIM_APPDEST}:/app/target:rw"
+    environment:
+      - MOOK_PORT=5866
+      - MOOK_DATA=/data
+      - MOOK_DIST=/app/dist
+      # 额外监听 Unix Socket，供统一网关转发
+      - MOOK_SOCKET=/app/target/app.sock
+      # 网关前缀：用于剥离路由前缀并注入前端 base 路径
+      - MOOK_BASE_PATH=/app/mook
+    # ports:
+    #   - "${TRIM_SERVICE_PORT}:5866"

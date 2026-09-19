@@ -2,6 +2,7 @@ import type { FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import { withBase } from '../api/base'
 import { useAuth } from '../store/auth'
 import { useI18n } from '../utils/i18n'
 import {
@@ -74,7 +75,7 @@ export default function Login() {
         <div className="w-full max-w-sm">
           <div className="mb-6 flex flex-col items-center gap-3">
             <img
-              src="/icon.png"
+              src={withBase('/icon.png')}
               alt="Mook"
               className="h-16 w-16 rounded-2xl object-cover shadow-lg shadow-accent/10"
               title="Mook"
@@ -208,7 +209,7 @@ export default function Login() {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.2.8</span>
+        <span>v0.2.9</span>
       </footer>
     </div>
   )

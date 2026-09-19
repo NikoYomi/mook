@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
+import { withBase } from '../api/base'
 import { AlertIcon, LayersIcon, RefreshIcon } from '../components/icons'
 import { useI18n } from '../utils/i18n'
 import { copyText } from '../utils/clipboard'
@@ -100,7 +101,7 @@ export default function TerminalTab({
     doFit()
 
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const ws = new WebSocket(`${proto}://${window.location.host}/ws/terminal?serverId=${serverId}`)
+    const ws = new WebSocket(`${proto}://${window.location.host}${withBase('/ws/terminal')}?serverId=${serverId}`)
     setStatus('connecting')
     setError('')
 

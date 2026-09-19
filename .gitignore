@@ -11,6 +11,11 @@ frontend/dist/
 # Go 构建产物
 backend/mook
 backend/*.exe
+build/
+
+# 飞牛 fnOS 应用包构建产物（fnpack build 生成，不入库）
+*.fpk
+fnos/*.fpk
 
 # 系统
 .DS_Store

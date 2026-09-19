@@ -1,0 +1,197 @@
+name: Release
+
+# 推送 v* 标签时触发：构建 fnOS 应用包 + 多平台可执行文件，统一挂到 GitHub Release。
+# Docker 镜像由 docker-build.yml 负责推送（同一标签触发，互不干涉）。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------- 前端：构建一次，供各平台复用 ----------
+  frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install --no-package-lock
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+
+  # ---------- 可执行文件：Windows / macOS / Linux ----------
+  binaries:
+    name: ${{ matrix.goos }}-${{ matrix.goarch }}
+    needs: frontend
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: windows, goarch: amd64, ext: ".exe", archive: zip }
+          - { goos: darwin, goarch: arm64, ext: "", archive: tar.gz }
+          - { goos: darwin, goarch: amd64, ext: "", archive: tar.gz }
+          - { goos: linux, goarch: amd64, ext: "", archive: tar.gz }
+          - { goos: linux, goarch: arm64, ext: "", archive: tar.gz }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Build binary
+        working-directory: backend
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          # modernc.org/sqlite 为纯 Go 实现，关闭 CGO 即可交叉编译
+          CGO_ENABLED: "0"
+        run: go build -trimpath -ldflags="-s -w" -o "../build/mook${{ matrix.ext }}" .
+
+      - name: Assemble package
+        run: |
+          set -euo pipefail
+          NAME="mook-${GITHUB_REF_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          PKG="dist/${NAME}"
+          mkdir -p "$PKG"
+          cp "build/mook${{ matrix.ext }}" "$PKG/"
+          cp -r frontend/dist "$PKG/dist"
+          cp README.md LICENSE "$PKG/"
+          printf '%s\n' "$NAME" > "$PKG/VERSION"
+
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            # 注意两点：批处理必须是 CRLF 行尾；正文只用 ASCII，
+            # 否则 cmd.exe 在默认代码页（936）下会把 UTF-8 中文显示成乱码。
+            cat > "$PKG/start.bat" <<'BAT'
+          @echo off
+          cd /d "%~dp0"
+          set MOOK_DIST=%cd%\dist
+          echo Starting Mook on http://localhost:5866
+          mook.exe %*
+          BAT
+            sed -i 's/$/\r/' "$PKG/start.bat"
+          else
+            cat > "$PKG/start.sh" <<'SH'
+          #!/bin/sh
+          cd "$(dirname "$0")" || exit 1
+          export MOOK_DIST="$PWD/dist"
+          echo "Mook 启动中，浏览器访问 http://localhost:${MOOK_PORT:-5866}"
+          exec ./mook "$@"
+          SH
+            chmod +x "$PKG/start.sh"
+          fi
+
+          # 两种归档都必须带上顶层目录名，保证解压后落在一个独立文件夹里
+          cd dist
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            zip -qr "${NAME}.zip" "$NAME"
+          else
+            tar -czf "${NAME}.tar.gz" "$NAME"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  # ---------- 飞牛 fnOS 应用包 ----------
+  fpk:
+    name: Build fnOS fpk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install fnpack
+        run: |
+          set -euo pipefail
+          curl -fsSL -o fnpack https://static2.fnnas.com/fnpack/fnpack-1.2.3-linux-amd64
+          chmod +x fnpack
+          sudo mv fnpack /usr/local/bin/fnpack
+          fnpack --help >/dev/null
+
+      # manifest 中的 version 必须与发布标签一致，避免应用中心版本号错乱
+      - name: Sync manifest version from tag
+        run: |
+          set -euo pipefail
+          VER="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version=.*/version=${VER}/" fnos/manifest
+          grep '^version=' fnos/manifest
+
+      - name: Build fpk
+        run: fnpack build --directory fnos
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fpk
+          path: |
+            *.fpk
+            fnos/*.fpk
+          if-no-files-found: error
+
+  # ---------- 汇总发布 ----------
+  release:
+    name: Publish Release
+    needs: [binaries, fpk]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      # 从 README「更新日志」提取当前标签对应的版本说明
+      - name: Extract release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME}"
+          awk -v tag="$TAG_NAME" '
+            $0 ~ "### " tag { flag=1; next }
+            flag && /^### / { exit }
+            flag { print }
+          ' README.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "Release $TAG_NAME" > release_notes.md
+          fi
+
+      - name: List artifacts
+        run: ls -lhR artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.md
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: artifacts/**

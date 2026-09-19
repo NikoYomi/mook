@@ -1,0 +1,14 @@
+{
+  ".url": {
+    "mook.main": {
+      "title": "Mook",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "protocol": "",
+      "gatewayPrefix": "/app/mook",
+      "gatewaySocket": "app.sock",
+      "url": "/app/mook",
+      "allUsers": true
+    }
+  }
+}

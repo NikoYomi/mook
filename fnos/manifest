@@ -1,0 +1,17 @@
+appname=mook
+version=0.2.9
+display_name=Mook
+desc=AI 驱动的自托管 SSH 终端与服务器管理工具。支持多服务器连接池、SFTP 文件管理、实时状态监控与 AI 辅助运维。
+source=thirdparty
+platform=all
+
+maintainer=NikoYomi
+maintainer_url=https://github.com/NikoYomi/mook
+
+os_min_version=1.2.0
+
+desktop_uidir=ui
+desktop_applaunchname=mook.main
+
+checkport=false
+ctl_stop=true
