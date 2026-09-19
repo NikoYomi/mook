@@ -62,8 +62,8 @@ SetupLogging=yes
 ; 没传（或带中文编译失败后回退）时只有英文，保证打包不会因为语言文件而失败。
 ;
 ; ⚠️ 注意 Inno Setup 6.x 的 Languages\ 目录里**没有** ChineseSimplified.isl
-;    （中文当时还属 Unofficial，7.x 才转正），所以不能硬写 compiler:Languages\...，
-;    必须由 CI 探测/下载后传进来。
+;    （6.x 全系都没有，中文到 7.0.2 才进入 Languages\ 主目录），所以不能硬写
+;    compiler:Languages\...，必须由 CI 下载/探测后传进来。
 #ifdef ZhLang
 Name: "chinese"; MessagesFile: "{#ZhLang}"
 #endif
