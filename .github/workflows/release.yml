@@ -244,22 +244,26 @@ jobs:
             "/DIconFile=$stage\mook.ico"
           )
 
-          # 中文语言包：优先用 Inno Setup 自带（7.x 起有），否则用上面下载的那份
+          # 中文语言包：优先用 Inno Setup 自带（7.0.2 起才进入 Languages\ 主目录），
+          # 否则用上面下载的那份（6.x 全系都只能走这条路）。
           $bundled    = Join-Path (Split-Path $iscc) "Languages\ChineseSimplified.isl"
           $downloaded = Join-Path $stage "ChineseSimplified.isl"
           $hasZh = $true
-          if (Test-Path $bundled) {
+          # -LiteralPath + -PathType Leaf：只认真实文件，避免同名目录让 Test-Path 误判
+          if (Test-Path -LiteralPath $bundled -PathType Leaf) {
             $defines += "/DZhLang=compiler:Languages\ChineseSimplified.isl"
             Write-Host "使用 Inno Setup 自带的中文语言包"
-          } elseif (Test-Path $downloaded) {
+          } elseif (Test-Path -LiteralPath $downloaded -PathType Leaf) {
             $defines += "/DZhLang=$downloaded"
-            Write-Host "使用下载的中文语言包"
+            Write-Host "使用下载的中文语言包: $downloaded"
           } else {
             $hasZh = $false
             Write-Warning "未取得中文语言包，向导使用英文"
           }
 
+          $zhOk = $false
           & $iscc @defines "packaging\windows\mook.iss"
+          if ($LASTEXITCODE -eq 0 -and $hasZh) { $zhOk = $true }
           # 语言文件若与编译器版本对不上（[Messages] 缺项），ISCC 会直接失败。
           # 这里去掉中文重试一次，保证「最差也只是英文向导」，不会让整个发版挂掉。
           if ($LASTEXITCODE -ne 0 -and $hasZh) {
@@ -269,6 +273,15 @@ jobs:
             & $iscc @defines "packaging\windows\mook.iss"
           }
           if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败，退出码 $LASTEXITCODE" }
+
+          # ISCC 只有成功解析并嵌入语言文件才会退出 0，所以 $zhOk 为真即证明中文确实编进去了。
+          # 结果写进 job summary，避免「静默出英文」这种问题再次无人察觉。
+          $lang = if ($zhOk) { "简体中文 + English" } else { "仅 English ⚠️" }
+          Write-Host "安装程序向导语言: $lang"
+          if (-not $zhOk) { Write-Host "::warning::本次安装程序向导为英文（中文语言包未生效）" }
+          if ($env:GITHUB_STEP_SUMMARY) {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- 安装程序向导语言: $lang"
+          }
 
       - name: Verify installer
         shell: pwsh
