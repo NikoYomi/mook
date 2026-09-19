@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { withBase } from '../api/base'
-import { AlertIcon, LayersIcon, RefreshIcon } from '../components/icons'
+import { AlertIcon, CheckIcon, CopyIcon, LayersIcon, RefreshIcon } from '../components/icons'
 import { useI18n } from '../utils/i18n'
 import { copyText } from '../utils/clipboard'
 import { useSettings } from '../store/settings'
@@ -45,11 +45,16 @@ export default function TerminalTab({
   onDisconnect,
 }: Props) {
   const t = useI18n()
+  const wrapRef = useRef<HTMLDivElement>(null)
   const elRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const [status, setStatus] = useState<Status>('connecting')
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
+  // 选中文字后浮出的「复制」按钮位置（相对终端容器左上角，单位 px）
+  const [selBox, setSelBox] = useState<{ top: number; left: number } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [hint, setHint] = useState('')
 
   const termBg = useSettings((s) => s.termBg)
   const termBgImage = useSettings((s) => s.termBgImage)
@@ -60,6 +65,18 @@ export default function TerminalTab({
     const idx = order.indexOf(termBg)
     const next = order[(idx + 1) % order.length]
     setTermBg(next)
+  }
+
+  // 复制当前终端选中内容（供浮动按钮调用）
+  const handleCopySelection = async () => {
+    const term = termRef.current
+    const sel = term?.getSelection()
+    if (!sel) return
+    const ok = await copyText(sel)
+    if (!ok) return
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1200)
+    term?.focus()
   }
 
   useEffect(() => {
@@ -240,6 +257,121 @@ export default function TerminalTab({
     }
     registerExec?.(tabKey, exec)
 
+    // —— 剪贴板提示 ——
+    let hintTimer = 0
+    const flashHint = (msg: string) => {
+      setHint(msg)
+      window.clearTimeout(hintTimer)
+      hintTimer = window.setTimeout(() => setHint(''), 2600)
+    }
+
+    // —— 粘贴 ——
+    // 剪贴板「读取」不像写入那样能降级：非安全上下文（http://IP:端口）下
+    // navigator.clipboard 不存在，只能提示用户改用 HTTPS 或 localhost。
+    const pasteFromClipboard = () => {
+      const clip = navigator.clipboard
+      if (!clip || typeof clip.readText !== 'function') {
+        flashHint('当前环境无法读取剪贴板（需 HTTPS 或 localhost 访问）')
+        return
+      }
+      clip
+        .readText()
+        .then((txt) => {
+          if (!txt) return
+          for (const c of txt) if (isPrintable(c)) echoTarget += c
+          send({ type: 'input', data: txt })
+          term.focus()
+        })
+        .catch(() => flashHint('浏览器拒绝了剪贴板读取权限'))
+    }
+
+    // —— 选区浮动复制按钮 ——
+    // xterm 5.x 用 DomRenderer，选区被渲染成 .xterm-selection 下若干绝对定位 div，
+    // 其 left/top/width/height 已是相对 .xterm-screen 的像素值 —— 直接读它即可像素级对齐，
+    // 无需私有 API。注意该层在 xterm 自己的 requestAnimationFrame 里才刷新，
+    // 所以这里用「嵌套两层 rAF」，确保读到的是刷新之后的几何。
+    let raf1 = 0
+    let raf2 = 0
+    const syncSel = () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          const host = elRef.current
+          const wrap = wrapRef.current
+          if (!host || !wrap || !term.hasSelection()) {
+            setSelBox(null)
+            return
+          }
+          const layer = host.querySelector('.xterm-selection')
+          const screen = host.querySelector('.xterm-screen')
+          const kids = layer ? Array.from(layer.children) : []
+          if (!screen || kids.length === 0) {
+            setSelBox(null)
+            return
+          }
+          const wrapRect = wrap.getBoundingClientRect()
+          const scrRect = screen.getBoundingClientRect()
+          const baseX = scrRect.left - wrapRect.left
+          const baseY = scrRect.top - wrapRect.top
+          let minTop = Infinity
+          let maxRight = -Infinity
+          for (const k of kids) {
+            const s = (k as HTMLElement).style
+            const t = parseFloat(s.top) || 0
+            const l = parseFloat(s.left) || 0
+            const w = parseFloat(s.width) || 0
+            if (t < minTop) minTop = t
+            if (l + w > maxRight) maxRight = l + w
+          }
+          if (!Number.isFinite(minTop) || !Number.isFinite(maxRight)) {
+            setSelBox(null)
+            return
+          }
+          const BTN = 26
+          const GAP = 4
+          // 默认贴在选区首行右上角外侧；上方空间不足时改贴首行内侧，避免被容器裁掉
+          let top = baseY + minTop - BTN - GAP
+          if (top < 2) top = baseY + minTop + 2
+          let left = baseX + maxRight - BTN
+          const maxLeft = Math.max(2, wrapRect.width - BTN - 2)
+          left = Math.min(Math.max(left, 2), maxLeft)
+          setSelBox({ top, left })
+        })
+      })
+    }
+
+    // 拖选过程中先收起按钮，松手后按新选区重新定位；双击则改为粘贴。
+    let dragging = false
+    const onDownCapture = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      // 点在复制按钮上：交给按钮自身的 onClick，不参与选区/粘贴逻辑
+      if (target && target.closest('[data-term-copy]')) return
+      if (e.detail === 2) {
+        // 双击 → 粘贴。捕获阶段拦下并阻止冒泡，避免 xterm 触发「双击选词」
+        e.preventDefault()
+        e.stopPropagation()
+        pasteFromClipboard()
+        return
+      }
+      dragging = true
+      setSelBox(null)
+    }
+    const onUpCapture = () => {
+      if (!dragging) return
+      dragging = false
+      syncSel()
+    }
+    el.addEventListener('mousedown', onDownCapture, true)
+    el.addEventListener('mouseup', onUpCapture, true)
+
+    const selDisposer = term.onSelectionChange(() => {
+      setCopied(false)
+      syncSel()
+    })
+    const scrollDisposer = term.onScroll(() => syncSel())
+    const resizeDisposer = term.onResize(() => syncSel())
+
     const dataDisposer = term.onData((d) => {
       // 记录可显示字符作为回显匹配目标（忽略控制序列）
       for (const c of d) if (isPrintable(c)) echoTarget += c
@@ -256,15 +388,7 @@ export default function TerminalTab({
         return false
       }
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
-        navigator.clipboard
-          .readText()
-          .then((txt) => {
-            if (txt) {
-              for (const c of txt) if (isPrintable(c)) echoTarget += c
-              send({ type: 'input', data: txt })
-            }
-          })
-          .catch(() => {})
+        pasteFromClipboard()
         return false
       }
       return true
@@ -278,7 +402,16 @@ export default function TerminalTab({
 
     return () => {
       dataDisposer.dispose()
+      selDisposer.dispose()
+      scrollDisposer.dispose()
+      resizeDisposer.dispose()
       ro.disconnect()
+      el.removeEventListener('mousedown', onDownCapture, true)
+      el.removeEventListener('mouseup', onUpCapture, true)
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      window.clearTimeout(hintTimer)
+      setSelBox(null)
       unregisterExec?.(tabKey)
       intentionalClose = true
       ws.close()
@@ -290,10 +423,10 @@ export default function TerminalTab({
 
   // 背景切换：仅更新容器样式与 xterm 透明度，不重建会话
   useEffect(() => {
-    const el = elRef.current
-    if (!el) return
+    const wrap = wrapRef.current
+    if (!wrap) return
     const style = bgStyle(termBg, termBgImage)
-    Object.assign(el.style, style)
+    Object.assign(wrap.style, style)
     const term = termRef.current
     if (term) {
       term.options.theme = {
@@ -328,6 +461,7 @@ export default function TerminalTab({
           >
             {status === 'connected' ? t('connected') : status === 'connecting' ? t('connecting') : t('disconnected')}
           </span>
+          {hint && <span className="truncate text-warn">{hint}</span>}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <button
@@ -356,7 +490,30 @@ export default function TerminalTab({
         </div>
       )}
       {/* 左右留白，避免终端输出贴边 */}
-      <div ref={elRef} className="min-h-0 flex-1 px-3 py-1.5" style={bgStyle(termBg, termBgImage)} />
+      <div
+        ref={wrapRef}
+        className="relative min-h-0 flex-1 px-3 py-1.5"
+        style={bgStyle(termBg, termBgImage)}
+      >
+        <div ref={elRef} className="h-full w-full" />
+        {selBox && (
+          <button
+            data-term-copy
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleCopySelection}
+            style={{ top: selBox.top, left: selBox.left }}
+            title={copied ? '已复制' : '复制选中内容'}
+            aria-label="复制选中内容"
+            className="absolute z-20 flex h-[26px] w-[26px] cursor-pointer items-center justify-center rounded-md border border-line-strong bg-panel/95 text-soft shadow-lg shadow-black/40 backdrop-blur transition-colors duration-150 hover:border-accent/40 hover:text-accent-bright"
+          >
+            {copied ? (
+              <CheckIcon size={14} className="text-accent-bright" />
+            ) : (
+              <CopyIcon size={14} />
+            )}
+          </button>
+        )}
+      </div>
     </div>
   )
 }

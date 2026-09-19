@@ -1,7 +1,12 @@
 name: Release
 
-# 推送 v* 标签时触发：构建 fnOS 应用包 + 多平台可执行文件，统一挂到 GitHub Release。
+# 推送 v* 标签时触发：构建 Windows / macOS / fnOS 三个安装包，统一挂到 GitHub Release。
 # Docker 镜像由 docker-build.yml 负责推送（同一标签触发，互不干涉）。
+#
+# 产物命名统一为 mook-<版本号>-<系统>-<机型>，且**只发布这 3 个**：
+#   mook-v0.3.0-windows-x64.exe       Windows 安装程序（Inno Setup，非压缩包）
+#   mook-v0.3.0-macos-arm64.tar.gz    macOS Apple Silicon（M 系列芯片）
+#   mook-v0.3.0-fnos-x86-arm.fpk      飞牛 fnOS（x86 + ARM 通用包）
 on:
   push:
     tags:
@@ -27,6 +32,7 @@ jobs:
         working-directory: frontend
         run: npm install --no-package-lock
 
+      # npm run build = tsc --noEmit && vite build，类型错误会在这里被拦下
       - name: Build
         working-directory: frontend
         run: npm run build
@@ -37,20 +43,11 @@ jobs:
           path: frontend/dist
           if-no-files-found: error
 
-  # ---------- 可执行文件：Windows / macOS / Linux ----------
-  binaries:
-    name: ${{ matrix.goos }}-${{ matrix.goarch }}
+  # ---------- macOS：Apple Silicon（M 系列）----------
+  macos:
+    name: macos-arm64
     needs: frontend
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { goos: windows, goarch: amd64, ext: ".exe", archive: zip }
-          - { goos: darwin, goarch: arm64, ext: "", archive: tar.gz }
-          - { goos: darwin, goarch: amd64, ext: "", archive: tar.gz }
-          - { goos: linux, goarch: amd64, ext: "", archive: tar.gz }
-          - { goos: linux, goarch: arm64, ext: "", archive: tar.gz }
     steps:
       - uses: actions/checkout@v4
 
@@ -67,59 +64,196 @@ jobs:
       - name: Build binary
         working-directory: backend
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+          GOOS: darwin
+          GOARCH: arm64
           # modernc.org/sqlite 为纯 Go 实现，关闭 CGO 即可交叉编译
           CGO_ENABLED: "0"
-        run: go build -trimpath -ldflags="-s -w" -o "../build/mook${{ matrix.ext }}" .
+        run: go build -trimpath -ldflags="-s -w" -o "../build/mook" .
 
       - name: Assemble package
         run: |
           set -euo pipefail
-          NAME="mook-${GITHUB_REF_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}"
-          PKG="dist/${NAME}"
+          NAME="mook-${GITHUB_REF_NAME}-macos-arm64"
+          PKG="build/pkg/${NAME}"
           mkdir -p "$PKG"
-          cp "build/mook${{ matrix.ext }}" "$PKG/"
+          cp build/mook "$PKG/"
           cp -r frontend/dist "$PKG/dist"
           cp README.md LICENSE "$PKG/"
           printf '%s\n' "$NAME" > "$PKG/VERSION"
 
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            # 注意两点：批处理必须是 CRLF 行尾；正文只用 ASCII，
-            # 否则 cmd.exe 在默认代码页（936）下会把 UTF-8 中文显示成乱码。
-            cat > "$PKG/start.bat" <<'BAT'
-          @echo off
-          cd /d "%~dp0"
-          set MOOK_DIST=%cd%\dist
-          echo Starting Mook on http://localhost:5866
-          mook.exe %*
-          BAT
-            sed -i 's/$/\r/' "$PKG/start.bat"
-          else
-            cat > "$PKG/start.sh" <<'SH'
+          cat > "$PKG/start.sh" <<'SH'
           #!/bin/sh
           cd "$(dirname "$0")" || exit 1
           export MOOK_DIST="$PWD/dist"
           echo "Mook 启动中，浏览器访问 http://localhost:${MOOK_PORT:-5866}"
           exec ./mook "$@"
           SH
-            chmod +x "$PKG/start.sh"
-          fi
+          chmod +x "$PKG/start.sh"
 
-          # 两种归档都必须带上顶层目录名，保证解压后落在一个独立文件夹里
-          cd dist
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            zip -qr "${NAME}.zip" "$NAME"
-          else
-            tar -czf "${NAME}.tar.gz" "$NAME"
-          fi
+          # 归档带上顶层目录名，保证解压后落在一个独立文件夹里
+          mkdir -p build/out
+          tar -czf "build/out/${NAME}.tar.gz" -C build/pkg "$NAME"
+          ls -lh "build/out/${NAME}.tar.gz"
+
+      - name: Verify package
+        run: |
+          set -euo pipefail
+          NAME="mook-${GITHUB_REF_NAME}-macos-arm64"
+          TARBALL="build/out/${NAME}.tar.gz"
+
+          # 先落盘再 grep，避免 `tar -tzf | grep -q` 触发 SIGPIPE 被 pipefail 误判
+          tar -tzf "$TARBALL" > list.txt
+          echo "----- 包内文件（前 20 项）-----"
+          head -20 list.txt
+          echo "-----------------------------"
+
+          for f in "${NAME}/mook" "${NAME}/dist/index.html" "${NAME}/start.sh" "${NAME}/VERSION"; do
+            grep -qx "$f" list.txt || { echo "::error::包内缺少 $f"; exit 1; }
+          done
+
+          # 可执行位必须保留，否则用户解压后没法直接跑
+          mode=$(tar -tvzf "$TARBALL" | awk -v t="${NAME}/mook" '$NF==t {print $1}')
+          case "$mode" in
+            *x*) echo "✓ mook 可执行位: $mode" ;;
+            *)   echo "::error::mook 丢失可执行位（$mode）"; exit 1 ;;
+          esac
+          echo "✓ macOS 包完整性校验通过"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bin-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: |
-            dist/*.zip
-            dist/*.tar.gz
+          name: pkg-macos-arm64
+          path: build/out/*.tar.gz
+          if-no-files-found: error
+
+  # ---------- Windows：真正的安装程序（Inno Setup）----------
+  # 注意：Go 交叉编译在 ubuntu 上就能做，但生成 .exe 安装程序需要 Windows 工具链，
+  # 所以这个 job 单独跑在 windows-latest 上（该镜像自带 Inno Setup 6.7.x）。
+  windows:
+    name: windows-x64 installer
+    needs: frontend
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Build mook.exe
+        working-directory: backend
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: go build -trimpath -ldflags="-s -w" -o "../build/mook.exe" .
+
+      - name: Stage files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stage = "build/winpkg"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "build/mook.exe" "$stage/mook.exe"
+          Copy-Item "frontend/dist" "$stage/dist" -Recurse
+          Copy-Item "README.md" $stage
+          Copy-Item "LICENSE" $stage
+          Copy-Item "packaging/windows/mook.ico" "$stage/mook.ico"
+          Get-ChildItem $stage | Select-Object Name, Length
+
+      # 启动脚本必须只有 ASCII：cmd.exe 默认代码页(936)下中文会显示成乱码。
+      # Set-Content 在 Windows 上写出 CRLF 行尾，正好是 .cmd 需要的。
+      - name: Write launcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ver = "${{ github.ref_name }}".TrimStart("v")
+          $lines = @(
+            '@echo off'
+            'setlocal'
+            'set "MOOK_HOME=%~dp0"'
+            'if not defined MOOK_DATA set "MOOK_DATA=%LOCALAPPDATA%\Mook\data"'
+            'if not defined MOOK_PORT set "MOOK_PORT=5866"'
+            'if not defined MOOK_DIST set "MOOK_DIST=%MOOK_HOME%dist"'
+            'cd /d "%MOOK_HOME%"'
+            'echo.'
+            ('echo   Mook v' + $ver)
+            'echo   Open:  http://localhost:%MOOK_PORT%'
+            'echo   Data:  %MOOK_DATA%'
+            'echo.'
+            'echo   Press Ctrl+C to stop this server.'
+            'echo.'
+            '"%MOOK_HOME%mook.exe" %*'
+            'if errorlevel 1 ('
+            '  echo.'
+            '  echo   Mook exited unexpectedly. Press any key to close.'
+            '  pause >nul'
+            ')'
+          )
+          Set-Content -Path "build/winpkg/mook-launch.cmd" -Value $lines -Encoding ASCII
+          Get-Content "build/winpkg/mook-launch.cmd"
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ver   = "${{ github.ref_name }}".TrimStart("v")
+          $base  = "mook-v$ver-windows-x64"
+          $stage = (Resolve-Path "build/winpkg").Path
+          $out   = Join-Path (Get-Location).Path "build/out"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          # 优先用 runner 预装的 Inno Setup；找不到再退回 choco 安装
+          $roots = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) | Where-Object { $_ }
+          $candidates = $roots | ForEach-Object { Join-Path $_ "Inno Setup 6\ISCC.exe" }
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            Write-Warning "未找到预装的 Inno Setup，改用 choco 安装"
+            choco install innosetup -y --no-progress
+            $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $iscc) { throw "找不到 ISCC.exe，无法编译安装程序" }
+          Write-Host "使用编译器: $iscc"
+
+          $defines = @(
+            "/DAppVersion=$ver",
+            "/DSourceDir=$stage",
+            "/DOutputDir=$out",
+            "/DOutputBase=$base",
+            "/DIconFile=$stage\mook.ico"
+          )
+          # 简体中文语言包是 Inno Setup 官方自带文件；存在才启用，
+          # 缺失时自动退回英文，避免因语言文件缺消息导致整个打包失败。
+          $zh = Join-Path (Split-Path $iscc) "Languages\ChineseSimplified.isl"
+          if (Test-Path $zh) { $defines += "/DUseZh=1"; Write-Host "启用简体中文向导" }
+          else { Write-Warning "未找到 ChineseSimplified.isl，向导使用英文" }
+
+          & $iscc @defines "packaging\windows\mook.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败，退出码 $LASTEXITCODE" }
+
+      - name: Verify installer
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart("v")
+          $exe = "build/out/mook-v$ver-windows-x64.exe"
+          if (-not (Test-Path $exe)) { throw "未生成安装程序: $exe" }
+          Get-Item $exe | Select-Object Name, Length
+          # 安装程序本身必须是合法的 PE 可执行文件（MZ 头）
+          $head = [System.IO.File]::ReadAllBytes($exe)[0..1]
+          if ($head[0] -ne 0x4D -or $head[1] -ne 0x5A) {
+            throw "产物不是合法的 Windows 可执行文件"
+          }
+          Write-Host "✓ 安装程序校验通过: $exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-windows-x64
+          path: build/out/*.exe
           if-no-files-found: error
 
   # ---------- 飞牛 fnOS 应用包 ----------
@@ -137,11 +271,14 @@ jobs:
           sudo mv fnpack /usr/local/bin/fnpack
           fnpack --help >/dev/null
 
-      # manifest 中的 version 必须与发布标签一致，避免应用中心版本号错乱
-      - name: Sync manifest version from tag
+      # manifest 中的 version 必须与发布标签一致，避免应用中心版本号错乱。
+      # 顺手把版本号与最终产物名写进 GITHUB_ENV，供后续步骤复用。
+      - name: Resolve version and sync manifest
         run: |
           set -euo pipefail
           VER="${GITHUB_REF_NAME#v}"
+          echo "VER=$VER" >> "$GITHUB_ENV"
+          echo "FPK_NAME=mook-v${VER}-fnos-x86-arm.fpk" >> "$GITHUB_ENV"
           sed -i "s/^version=.*/version=${VER}/" fnos/manifest
           grep '^version=' fnos/manifest
 
@@ -155,8 +292,10 @@ jobs:
             echo "::error::fnpack 未生成 mook.fpk，打包失败（请检查 fnos/cmd 下的生命周期脚本是否齐全）"
             exit 1
           fi
-          ls -lh mook.fpk
-          echo "fpk 大小: $(stat -c%s mook.fpk) 字节"
+          # fnpack 固定按 manifest 里的 appname 输出 mook.fpk，这里改成统一的发布命名
+          mv mook.fpk "$FPK_NAME"
+          ls -lh "$FPK_NAME"
+          echo "fpk 大小: $(stat -c%s "$FPK_NAME") 字节"
 
       # 产物校验：确认包内确实含全部必需的生命周期脚本，避免装到设备上才发现问题
       # 注意：.fpk 是 gzip 压缩的 tar 包（不是 zip），必须用 tar 读取
@@ -168,7 +307,7 @@ jobs:
       - name: Verify fpk contents
         run: |
           set -euo pipefail
-          tar -tzf mook.fpk > fpk-list.txt
+          tar -tzf "$FPK_NAME" > fpk-list.txt
           echo "----- fpk 包内文件清单 -----"
           cat fpk-list.txt
           echo "---------------------------"
@@ -181,21 +320,21 @@ jobs:
           done
 
           if [ -n "$missing" ]; then
-            echo "::error::mook.fpk 内缺少必需文件:$missing"
+            echo "::error::$FPK_NAME 内缺少必需文件:$missing"
             exit 1
           fi
           echo "✓ fpk 包完整性校验通过"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: fpk
-          path: mook.fpk
+          name: pkg-fnos-x86-arm
+          path: "*.fpk"
           if-no-files-found: error
 
   # ---------- 汇总发布 ----------
   release:
     name: Publish Release
-    needs: [binaries, fpk]
+    needs: [macos, windows, fpk]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
@@ -203,18 +342,24 @@ jobs:
 
       # 只下载要发布的产物。注意不能省略 pattern —— 不指定 name/pattern 会把
       # 所有 artifact 全拉下来，中间产物 frontend-dist 会跟着混进 Release。
-      - name: Download binary packages
+      - name: Download packages
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          pattern: bin-*
+          pattern: pkg-*
           merge-multiple: true
 
-      - name: Download fnOS fpk
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          name: fpk
+      # 守住「只发 3 个产物」这条线：多了（混入中间产物）或少了（某平台没构建成功）都拦下
+      - name: Verify asset count
+        run: |
+          set -euo pipefail
+          ls -lh artifacts
+          n=$(find artifacts -type f | wc -l)
+          if [ "$n" -ne 3 ]; then
+            echo "::error::Release 应当只挂 3 个产物，实际 $n 个"
+            exit 1
+          fi
+          echo "✓ 产物数量正确（3）"
 
       # 从 README「更新日志」提取当前标签对应的版本说明
       - name: Extract release notes
@@ -230,9 +375,6 @@ jobs:
           if [ ! -s release_notes.md ]; then
             echo "Release $TAG_NAME" > release_notes.md
           fi
-
-      - name: List artifacts
-        run: ls -lhR artifacts
 
       - uses: softprops/action-gh-release@v2
         with:

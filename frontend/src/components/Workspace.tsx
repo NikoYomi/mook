@@ -1,7 +1,6 @@
 import type { ComponentType } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { withBase } from '../api/base'
 import { useAuth } from '../store/auth'
 import { useAi } from '../store/ai'
 import { useCommands } from '../store/commands'
@@ -106,18 +105,6 @@ export default function Workspace() {
     <div className="flex h-full flex-col bg-canvas">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-panel/90 px-3">
         <div className="flex min-w-0 items-center gap-1">
-          <button
-            onClick={() => navigate('/')}
-            className="mr-2 flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 transition-colors duration-150 hover:bg-raise"
-            title="Mook 首页"
-          >
-            <img
-              src={withBase('/icon.png')}
-              alt="Mook"
-              className="h-6 w-6 rounded-md object-cover"
-            />
-            <span className="text-sm font-bold tracking-wide text-ink">Mook</span>
-          </button>
           <nav className="flex items-center gap-0.5">
             {navItems(t).map((item) => {
               const active = view === item.key

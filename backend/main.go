@@ -62,7 +62,7 @@ func main() {
 		root = stripBasePath(cfg.BasePath, router)
 	}
 
-	log.Printf("Mook v0.2.9 已启动: http://localhost:%s", cfg.Port)
+	log.Printf("Mook v0.3.0 已启动: http://localhost:%s", cfg.Port)
 	log.Printf("数据目录: %s", cfg.DataDir)
 	if cfg.BasePath != "" {
 		log.Printf("外部访问前缀: %s", cfg.BasePath)

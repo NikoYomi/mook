@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.2.9-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.3.0-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.2.9** 
+**当前版本：v0.3.0** 
 
 > 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
@@ -226,8 +226,9 @@ mook/
 - ✅ v0.2.4 —— 登录页品牌 / 下拉宽度修正 / 新增终端背景
 - ✅ v0.2.7 —— Mook 助手提示词升级 / 命令精准提取 / 断开自动清空 AI 输出
 - ✅ v0.2.8 —— AI 对话按标签隔离 / 服务器延迟与信息修复 / AI 富文本输出与命令块发送 / 新增厂商
-- ✅ v0.2.9 —— 飞牛 fnOS 应用包（.fpk）+ 统一网关接入 + 多平台 Release 产物（当前）
+- ✅ v0.2.9 —— 飞牛 fnOS 应用包（.fpk）+ 统一网关接入 + 多平台 Release 产物
 - ✅ v0.2.6 —— 备份跨环境还原修复（凭据随备份重加密）/ 提示改悬浮 Toast
+- ✅ v0.3.0 —— 发布产物精简为 3 个并统一命名 / Windows 真安装程序 / 终端选中即复制与双击粘贴（当前）
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
 - ⏳ v2.0 —— AI DevOps 助手
@@ -235,6 +236,18 @@ mook/
 ---
 
 ## 📄 更新日志
+
+### v0.3.0
+
+- **发布产物精简为 3 个**：只保留 Windows、macOS（M 系列芯片）、飞牛 fnOS 三个安装包，命名统一为 `mook-版本号-系统-机型`；Release 页面不再出现中间产物
+  - `mook-v0.3.0-windows-x64.exe`
+  - `mook-v0.3.0-macos-arm64.tar.gz`
+  - `mook-v0.3.0-fnos-x86-arm.fpk`
+- **Windows 改为真正的安装程序**：不再是压缩包，而是 Inno Setup 安装向导 —— 可选安装目录、创建桌面快捷方式、设置开机自启，并自带卸载程序；默认按「仅当前用户」安装，无需管理员权限
+- **终端选中即复制**：在终端里框选文字后，选区右上角会浮出一个复制按钮，点一下即可复制；点击别处或重新框选时按钮自动消失
+- **终端双击粘贴**：在终端界面双击即可把剪贴板内容粘贴进去（`Shift+V` 同样可用）；剪贴板读取受浏览器安全策略限制，非 HTTPS / localhost 环境会给出提示
+- **界面精简**：移除主页左上角的图标与「Mook」名称，导航更紧凑
+- **macOS 首次运行提示**：安装包未做代码签名，若提示「无法验证开发者」，请右键 →「打开」，或执行 `xattr -dr com.apple.quarantine ./mook`
 
 ### v0.2.9
 
