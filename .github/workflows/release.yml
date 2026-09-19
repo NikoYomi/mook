@@ -198,6 +198,22 @@ jobs:
           Set-Content -Path "build/winpkg/mook-launch.cmd" -Value $lines -Encoding ASCII
           Get-Content "build/winpkg/mook-launch.cmd"
 
+      # Inno Setup 6.x 的 Languages\ 目录里没有 ChineseSimplified.isl（中文当时还属
+      # Unofficial，7.x 才转正），所以这里主动去官方源码仓取一份。取与 6.x 同代的标签
+      # 下的文件，版本匹配能最大程度避免 [Messages] 缺项；取不到就退回英文向导。
+      - name: Fetch Chinese language file
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $url  = "https://raw.githubusercontent.com/jrsoftware/issrc/is-6_7_0/Files/Languages/Unofficial/ChineseSimplified.isl"
+          $dest = "build/winpkg/ChineseSimplified.isl"
+          try {
+            Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+            Write-Host "已取得中文语言包: $((Get-Item $dest).Length) 字节"
+          } catch {
+            Write-Warning "中文语言包获取失败，将使用英文向导: $_"
+          }
+
       - name: Build installer
         shell: pwsh
         run: |
@@ -227,13 +243,31 @@ jobs:
             "/DOutputBase=$base",
             "/DIconFile=$stage\mook.ico"
           )
-          # 简体中文语言包是 Inno Setup 官方自带文件；存在才启用，
-          # 缺失时自动退回英文，避免因语言文件缺消息导致整个打包失败。
-          $zh = Join-Path (Split-Path $iscc) "Languages\ChineseSimplified.isl"
-          if (Test-Path $zh) { $defines += "/DUseZh=1"; Write-Host "启用简体中文向导" }
-          else { Write-Warning "未找到 ChineseSimplified.isl，向导使用英文" }
+
+          # 中文语言包：优先用 Inno Setup 自带（7.x 起有），否则用上面下载的那份
+          $bundled    = Join-Path (Split-Path $iscc) "Languages\ChineseSimplified.isl"
+          $downloaded = Join-Path $stage "ChineseSimplified.isl"
+          $hasZh = $true
+          if (Test-Path $bundled) {
+            $defines += "/DZhLang=compiler:Languages\ChineseSimplified.isl"
+            Write-Host "使用 Inno Setup 自带的中文语言包"
+          } elseif (Test-Path $downloaded) {
+            $defines += "/DZhLang=$downloaded"
+            Write-Host "使用下载的中文语言包"
+          } else {
+            $hasZh = $false
+            Write-Warning "未取得中文语言包，向导使用英文"
+          }
 
           & $iscc @defines "packaging\windows\mook.iss"
+          # 语言文件若与编译器版本对不上（[Messages] 缺项），ISCC 会直接失败。
+          # 这里去掉中文重试一次，保证「最差也只是英文向导」，不会让整个发版挂掉。
+          if ($LASTEXITCODE -ne 0 -and $hasZh) {
+            Write-Warning "带中文语言包编译失败（退出码 $LASTEXITCODE），改用英文向导重试"
+            Remove-Item (Join-Path $out "*.exe") -Force -ErrorAction SilentlyContinue
+            $defines = $defines | Where-Object { $_ -notlike "/DZhLang=*" }
+            & $iscc @defines "packaging\windows\mook.iss"
+          }
           if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败，退出码 $LASTEXITCODE" }
 
       - name: Verify installer

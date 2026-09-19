@@ -4,12 +4,11 @@
 ; 由 CI 调用（版本号与路径全部通过 /D 传入，脚本内不写死）：
 ;   ISCC.exe /DAppVersion=0.3.0 /DSourceDir=<staging> /DOutputDir=<out> \
 ;            /DOutputBase=mook-v0.3.0-windows-x64 /DIconFile=<abs>\mook.ico \
-;            /DUseZh=1 packaging\windows\mook.iss
+;            /DZhLang=<中文语言包路径> packaging\windows\mook.iss
 ;
 ; 约定：本文件只使用 ASCII 字符。
 ;   .iss 在不同 Inno Setup 版本下对非 ASCII 源文件编码的容忍度不一致，
-;   所以向导界面文案一律交给官方语言包（Languages\ChineseSimplified.isl），
-;   脚本自身保持纯 ASCII 以免踩编码坑。
+;   所以向导界面文案一律交给语言包（见下方 [Languages]），脚本自身保持纯 ASCII。
 ; ============================================================================
 
 #ifndef AppVersion
@@ -58,10 +57,15 @@ SetupIconFile={#IconFile}
 SetupLogging=yes
 
 [Languages]
-; 简体中文语言包是 Inno Setup 官方自带文件；CI 会先探测它是否存在，
-; 缺失时只编译英文，避免因为语言文件缺消息导致整个打包失败。
-#ifdef UseZh
-Name: "chinese"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; 中文语言包路径由 CI 通过 /DZhLang=<路径> 传入（可以是绝对路径，也可以是
+; compiler:Languages\X.isl 这种 Inno Setup 自带的相对写法）。传了才编译中文；
+; 没传（或带中文编译失败后回退）时只有英文，保证打包不会因为语言文件而失败。
+;
+; ⚠️ 注意 Inno Setup 6.x 的 Languages\ 目录里**没有** ChineseSimplified.isl
+;    （中文当时还属 Unofficial，7.x 才转正），所以不能硬写 compiler:Languages\...，
+;    必须由 CI 探测/下载后传进来。
+#ifdef ZhLang
+Name: "chinese"; MessagesFile: "{#ZhLang}"
 #endif
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
