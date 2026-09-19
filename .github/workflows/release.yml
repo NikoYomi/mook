@@ -160,18 +160,30 @@ jobs:
 
       # 产物校验：确认包内确实含全部必需的生命周期脚本，避免装到设备上才发现问题
       # 注意：.fpk 是 gzip 压缩的 tar 包（不是 zip），必须用 tar 读取
+      #
+      # ⚠️ 必须先把清单落到文件再 grep，不能写成 `tar -tzf x.fpk | grep -qx "$f"`：
+      #    GNU tar 逐条输出、grep -q 命中即退出 → tar 收到 SIGPIPE(141)，
+      #    配合 `set -o pipefail` 会把「已找到」误判成「缺失」。
+      #    （bsdtar 会整体缓冲，所以在 macOS 上无法复现，只在 Linux runner 上炸）
       - name: Verify fpk contents
         run: |
           set -euo pipefail
-          tar -tzf mook.fpk
+          tar -tzf mook.fpk > fpk-list.txt
+          echo "----- fpk 包内文件清单 -----"
+          cat fpk-list.txt
+          echo "---------------------------"
+
+          missing=""
           for f in cmd/main cmd/install_init cmd/install_callback \
                    cmd/upgrade_init cmd/upgrade_callback \
                    cmd/uninstall_init cmd/uninstall_callback; do
-            if ! tar -tzf mook.fpk | grep -qx "$f"; then
-              echo "::error::mook.fpk 内缺少必需文件: $f"
-              exit 1
-            fi
+            grep -qx "$f" fpk-list.txt || missing="$missing $f"
           done
+
+          if [ -n "$missing" ]; then
+            echo "::error::mook.fpk 内缺少必需文件:$missing"
+            exit 1
+          fi
           echo "✓ fpk 包完整性校验通过"
 
       - uses: actions/upload-artifact@v4
@@ -189,10 +201,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      # 只下载要发布的产物。注意不能省略 pattern —— 不指定 name/pattern 会把
+      # 所有 artifact 全拉下来，中间产物 frontend-dist 会跟着混进 Release。
+      - name: Download binary packages
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: bin-*
           merge-multiple: true
+
+      - name: Download fnOS fpk
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          name: fpk
 
       # 从 README「更新日志」提取当前标签对应的版本说明
       - name: Extract release notes
