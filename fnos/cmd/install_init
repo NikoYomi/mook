@@ -1,0 +1,46 @@
+#!/bin/bash
+#
+# Mook · 安装前执行（install_init）
+#
+# 在应用包文件落盘之前调用，适合做环境检查与目录初始化。
+# 必须可重复执行：安装流程可能因重试或修复而被多次触发。
+#
+# 退出码约定：
+#   0 = 成功（继续安装）
+#   1 = 失败（中止安装）
+
+set -u
+
+LOG="${TRIM_TEMP_LOGFILE:-/dev/null}"
+
+log() {
+  echo "[mook][install_init] $*" >> "$LOG" 2>/dev/null || true
+}
+
+log "开始安装前检查"
+
+# 数据目录：容器通过 ${TRIM_PKGVAR}/data 挂载持久化数据
+if [ -n "${TRIM_PKGVAR:-}" ]; then
+  mkdir -p "${TRIM_PKGVAR}/data" 2>/dev/null || true
+  log "数据目录就绪: ${TRIM_PKGVAR}/data"
+else
+  log "警告: TRIM_PKGVAR 未设置，跳过数据目录初始化"
+fi
+
+# 应用运行目录：统一网关的 app.sock 会落在这里
+if [ -n "${TRIM_APPDEST:-}" ]; then
+  mkdir -p "${TRIM_APPDEST}" 2>/dev/null || true
+  log "运行目录就绪: ${TRIM_APPDEST}"
+else
+  log "警告: TRIM_APPDEST 未设置，跳过运行目录初始化"
+fi
+
+# 检查 docker 可用性（缺失时仅告警，不中止安装，避免误伤无 Docker 环境）
+if command -v docker >/dev/null 2>&1; then
+  log "docker 可用"
+else
+  log "警告: 未检测到 docker 命令，容器可能无法启动"
+fi
+
+log "安装前检查完成"
+exit 0

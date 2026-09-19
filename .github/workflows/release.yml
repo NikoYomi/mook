@@ -145,15 +145,39 @@ jobs:
           sed -i "s/^version=.*/version=${VER}/" fnos/manifest
           grep '^version=' fnos/manifest
 
+      # 注意：fnpack 打包失败时仍会返回 exit 0（例如缺少 cmd/ 生命周期脚本），
+      # 必须显式校验产物是否存在，否则这一步会「假绿」而后续上传产物才报错。
       - name: Build fpk
-        run: fnpack build --directory fnos
+        run: |
+          set -euo pipefail
+          fnpack build --directory fnos
+          if [ ! -f mook.fpk ]; then
+            echo "::error::fnpack 未生成 mook.fpk，打包失败（请检查 fnos/cmd 下的生命周期脚本是否齐全）"
+            exit 1
+          fi
+          ls -lh mook.fpk
+          echo "fpk 大小: $(stat -c%s mook.fpk) 字节"
+
+      # 产物校验：确认包内确实含全部必需的生命周期脚本，避免装到设备上才发现问题
+      # 注意：.fpk 是 gzip 压缩的 tar 包（不是 zip），必须用 tar 读取
+      - name: Verify fpk contents
+        run: |
+          set -euo pipefail
+          tar -tzf mook.fpk
+          for f in cmd/main cmd/install_init cmd/install_callback \
+                   cmd/upgrade_init cmd/upgrade_callback \
+                   cmd/uninstall_init cmd/uninstall_callback; do
+            if ! tar -tzf mook.fpk | grep -qx "$f"; then
+              echo "::error::mook.fpk 内缺少必需文件: $f"
+              exit 1
+            fi
+          done
+          echo "✓ fpk 包完整性校验通过"
 
       - uses: actions/upload-artifact@v4
         with:
           name: fpk
-          path: |
-            *.fpk
-            fnos/*.fpk
+          path: mook.fpk
           if-no-files-found: error
 
   # ---------- 汇总发布 ----------

@@ -1,0 +1,36 @@
+#!/bin/bash
+#
+# Mook · 安装后执行（install_callback）
+#
+# 在应用包文件落盘之后调用。
+# 容器的创建与启动由飞牛 fnOS 依据 config/resource 中的 docker-project 处理，
+# 这里只做「预拉取镜像」这类能加速首次启动的优化。
+#
+# 镜像拉取失败不应让安装失败：网络受限时 fnOS 仍会在启动阶段重试。
+#
+# 退出码约定：
+#   0 = 成功
+#   1 = 失败
+
+set -u
+
+LOG="${TRIM_TEMP_LOGFILE:-/dev/null}"
+IMAGE="nikoyomi/mook:latest"
+
+log() {
+  echo "[mook][install_callback] $*" >> "$LOG" 2>/dev/null || true
+}
+
+log "安装完成，预拉取镜像: $IMAGE"
+
+if command -v docker >/dev/null 2>&1; then
+  if docker pull "$IMAGE" >> "$LOG" 2>&1; then
+    log "镜像拉取成功"
+  else
+    log "警告: 镜像预拉取失败，将在启动阶段重试"
+  fi
+else
+  log "警告: 未检测到 docker 命令，跳过镜像预拉取"
+fi
+
+exit 0

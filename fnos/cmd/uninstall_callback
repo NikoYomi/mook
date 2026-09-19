@@ -1,0 +1,34 @@
+#!/bin/bash
+#
+# Mook · 卸载清理后执行（uninstall_callback）
+#
+# 在应用文件被移除之后调用。
+#
+# 数据策略：**默认保留用户数据**。
+# Mook 的数据目录包含服务器凭据（AES-256-GCM 加密）与连接配置，
+# 静默删除会造成不可逆的数据丢失，因此这里只提示路径、不做删除。
+# 需要彻底清理的用户可自行删除该目录。
+#
+# 退出码约定：
+#   0 = 成功
+#   1 = 失败
+
+set -u
+
+LOG="${TRIM_TEMP_LOGFILE:-/dev/null}"
+
+log() {
+  echo "[mook][uninstall_callback] $*" >> "$LOG" 2>/dev/null || true
+}
+
+log "应用已卸载"
+
+if [ -n "${TRIM_PKGVAR:-}" ] && [ -d "${TRIM_PKGVAR}/data" ]; then
+  log "用户数据已保留: ${TRIM_PKGVAR}/data"
+  log "如需彻底清理，请手动删除该目录"
+else
+  log "未发现用户数据目录"
+fi
+
+log "卸载清理完成"
+exit 0

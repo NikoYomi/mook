@@ -1,0 +1,41 @@
+#!/bin/bash
+#
+# Mook · 升级前执行（upgrade_init）
+#
+# 在新版应用包落盘之前调用。
+# 飞牛 fnOS 通常会在升级前停止应用；这里做一次幂等的兜底停止，
+# 避免旧容器仍占用镜像标签导致升级后启动的是旧版本。
+#
+# 退出码约定：
+#   0 = 成功（继续升级）
+#   1 = 失败（中止升级）
+
+set -u
+
+LOG="${TRIM_TEMP_LOGFILE:-/dev/null}"
+CONTAINER_NAME="mook-fnos"
+
+log() {
+  echo "[mook][upgrade_init] $*" >> "$LOG" 2>/dev/null || true
+}
+
+log "开始升级前处理"
+
+if command -v docker >/dev/null 2>&1; then
+  if docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+    log "停止旧容器: $CONTAINER_NAME"
+    docker stop "$CONTAINER_NAME" >> "$LOG" 2>&1 || log "警告: 停止容器失败，继续升级"
+  else
+    log "未发现运行中的容器，跳过"
+  fi
+else
+  log "警告: 未检测到 docker 命令，跳过容器停止"
+fi
+
+# 数据目录在升级过程中保持不变，仅确保存在
+if [ -n "${TRIM_PKGVAR:-}" ]; then
+  mkdir -p "${TRIM_PKGVAR}/data" 2>/dev/null || true
+fi
+
+log "升级前处理完成"
+exit 0

@@ -1,0 +1,37 @@
+#!/bin/bash
+#
+# Mook · 升级后执行（upgrade_callback）
+#
+# 在新版应用包落盘之后调用。
+# 容器的重建与启动由飞牛 fnOS 依据 config/resource 中的 docker-project 处理，
+# 这里只负责拉取新镜像，确保 fnOS 启动容器时拿到的是最新版本。
+#
+# 数据库位于 ${TRIM_PKGVAR}/data（宿主机卷），升级不会影响用户数据。
+#
+# 退出码约定：
+#   0 = 成功
+#   1 = 失败
+
+set -u
+
+LOG="${TRIM_TEMP_LOGFILE:-/dev/null}"
+IMAGE="nikoyomi/mook:latest"
+
+log() {
+  echo "[mook][upgrade_callback] $*" >> "$LOG" 2>/dev/null || true
+}
+
+log "升级完成，拉取新镜像: $IMAGE"
+
+if command -v docker >/dev/null 2>&1; then
+  if docker pull "$IMAGE" >> "$LOG" 2>&1; then
+    log "新镜像就绪"
+  else
+    log "警告: 镜像拉取失败，将在启动阶段重试"
+  fi
+else
+  log "警告: 未检测到 docker 命令，跳过镜像拉取"
+fi
+
+log "用户数据目录保持不变: ${TRIM_PKGVAR:-<未设置>}/data"
+exit 0

@@ -1,0 +1,47 @@
+#!/bin/bash
+#
+# Mook · 卸载前执行（uninstall_init）
+#
+# 在移除已安装文件之前调用。
+# 必须先把容器停掉并移除，否则残留容器会继续占用 app.sock 与数据目录，
+# 导致重装时出现「端口/套接字已被占用」类问题。
+#
+# 用户数据（${TRIM_PKGVAR}/data）在此阶段不删除，交由 uninstall_callback 决策。
+#
+# 退出码约定：
+#   0 = 成功（继续卸载）
+#   1 = 失败（中止卸载）
+
+set -u
+
+LOG="${TRIM_TEMP_LOGFILE:-/dev/null}"
+CONTAINER_NAME="mook-fnos"
+
+log() {
+  echo "[mook][uninstall_init] $*" >> "$LOG" 2>/dev/null || true
+}
+
+log "开始卸载前处理"
+
+if command -v docker >/dev/null 2>&1; then
+  if docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+    log "停止容器: $CONTAINER_NAME"
+    docker stop "$CONTAINER_NAME" >> "$LOG" 2>&1 || log "警告: 停止容器失败"
+
+    log "移除容器: $CONTAINER_NAME"
+    docker rm -f "$CONTAINER_NAME" >> "$LOG" 2>&1 || log "警告: 移除容器失败"
+  else
+    log "未发现容器，跳过"
+  fi
+else
+  log "警告: 未检测到 docker 命令，跳过容器清理"
+fi
+
+# 清理统一网关套接字，避免重装时残留
+if [ -n "${TRIM_APPDEST:-}" ] && [ -S "${TRIM_APPDEST}/app.sock" ]; then
+  rm -f "${TRIM_APPDEST}/app.sock" 2>/dev/null || true
+  log "已清理残留套接字: ${TRIM_APPDEST}/app.sock"
+fi
+
+log "卸载前处理完成"
+exit 0
