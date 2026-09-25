@@ -41,6 +41,11 @@ func main() {
 	if cfg.Password != "" {
 		n, _ := database.CountUsers(db)
 		if n == 0 {
+			// 与网页初始化共用同一口令下限，避免环境变量成为绕过校验的后门。
+			// 该分支仅在「尚无任何用户」时进入，故不会影响已有实例的升级启动。
+			if len(cfg.Password) < auth.MinPasswordLen {
+				log.Fatalf("MOOK_PASSWORD 至少 %d 位（当前 %d 位）", auth.MinPasswordLen, len(cfg.Password))
+			}
 			hash, err := auth.HashPassword(cfg.Password)
 			if err != nil {
 				log.Fatalf("创建初始管理员失败: %v", err)
@@ -62,7 +67,7 @@ func main() {
 		root = stripBasePath(cfg.BasePath, router)
 	}
 
-	log.Printf("Mook v0.3.0 已启动: http://localhost:%s", cfg.Port)
+	log.Printf("Mook v0.3.1 已启动: http://localhost:%s", cfg.Port)
 	log.Printf("数据目录: %s", cfg.DataDir)
 	if cfg.BasePath != "" {
 		log.Printf("外部访问前缀: %s", cfg.BasePath)

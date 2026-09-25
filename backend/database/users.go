@@ -22,6 +22,34 @@ func CreateUser(db *sql.DB, username, passwordHash string) (*User, error) {
 	return &User{ID: id, Username: username, PasswordHash: passwordHash, CreatedAt: time.Now()}, nil
 }
 
+// CreateFirstUser 仅在系统尚无用户时创建首个用户。
+// 返回 false 表示已存在用户（即已完成初始化）。
+//
+// 「计数」与「插入」必须原子完成：若先 CountUsers 再 CreateUser，
+// 两个并发请求可能都读到 0，导致重复初始化。
+func CreateFirstUser(db *sql.DB, username, passwordHash string) (bool, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var n int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
+		return false, err
+	}
+	if n > 0 {
+		return false, nil
+	}
+	if _, err := tx.Exec(
+		`INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)`,
+		username, passwordHash, nowStr(),
+	); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
+}
+
 // CountUsers 用户数量
 func CountUsers(db *sql.DB) (int, error) {
 	var n int

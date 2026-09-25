@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.3.0-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.3.1-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.3.0** 
+**当前版本：v0.3.1** 
 
 > 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
@@ -68,7 +68,7 @@ Docker 20.10+，支持 Linux / macOS / Windows（WSL2）。
 
 ### 方式一：使用发布镜像（推荐，免本机构建）
 
-打 `v*` Tag 时由 GitHub Actions 自动构建并推送镜像（tag 含 `0.2.5` / `latest`，双平台）：
+打 `v*` Tag 时由 GitHub Actions 自动构建并推送镜像（tag 含完整版本号、`主版本.次版本`、`latest` 与提交短 SHA，双平台 amd64/arm64）：
 
 - **GHCR**：`ghcr.io/nikoyomi/mook`
 - **Docker Hub**：`nikoyomi/mook`
@@ -194,8 +194,9 @@ mook/
 | `MOOK_PORT` | `5866` | HTTP 服务端口 |
 | `MOOK_DATA` | `./data` | 数据目录（SQLite 与密钥） |
 | `MOOK_DIST` | `./dist` | 前端静态资源目录 |
-| `MOOK_PASSWORD` | 空 | 可选：预设初始管理员密码 |
+| `MOOK_PASSWORD` | 空 | 可选：预设初始管理员密码（至少 8 位） |
 | `MOOK_SECRET` | 自动生成 | 可选：凭据加密密钥 |
+| `MOOK_TRUST_PROXY` | 空 | 可选：置 `1` 时采信 `X-Forwarded-For`。**仅在应用前面确实有可信反向代理时开启**，否则该头可被伪造，按 IP 的登录限流会被绕过 |
 
 ### 🤖 AI 配置
 
@@ -212,7 +213,7 @@ mook/
 - 密码使用 bcrypt 哈希；SSH 密码、私钥、AI Key 均加密存储
 - 登录限流：5 次失败锁定 15 分钟（重启容器可重置）；会话有效期 6 小时
 - 建议通过 Caddy / Nginx 反向代理启用 HTTPS
-- v0.2.x 暂不校验 SSH 主机指纹（known_hosts），后续版本完善
+- 当前版本暂不校验 SSH 主机指纹（known_hosts），后续版本完善
 
 ---
 
@@ -228,7 +229,8 @@ mook/
 - ✅ v0.2.8 —— AI 对话按标签隔离 / 服务器延迟与信息修复 / AI 富文本输出与命令块发送 / 新增厂商
 - ✅ v0.2.9 —— 飞牛 fnOS 应用包（.fpk）+ 统一网关接入 + 多平台 Release 产物
 - ✅ v0.2.6 —— 备份跨环境还原修复（凭据随备份重加密）/ 提示改悬浮 Toast
-- ✅ v0.3.0 —— 发布产物精简为 3 个并统一命名 / Windows 真安装程序 / 终端选中即复制与双击粘贴（当前）
+- ✅ v0.3.0 —— 发布产物精简为 3 个并统一命名 / Windows 真安装程序 / 终端选中即复制与双击粘贴
+- ✅ v0.3.1 —— 安全修复：登录限流恢复生效 / 限流内存回收 / 可信代理开关 / 口令下限与 Cookie 加固（当前）
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
 - ⏳ v2.0 —— AI DevOps 助手
@@ -236,6 +238,18 @@ mook/
 ---
 
 ## 📄 更新日志
+
+### v0.3.1
+
+> 本次为**安全修复**，建议所有用户升级。
+
+- **修复登录限流完全失效**：此前连续输错密码**不会触发锁定**（README 承诺的「5 次失败锁定 15 分钟」实际从未生效）。现已修复，连续失败 5 次后第 6 次会被拒绝（429）
+- **修复限流内存无回收 + 代理头可伪造**：`X-Forwarded-For` 此前被**无条件信任**，攻击者每次伪造不同 IP 即可绕过限流、并使服务内存无上限增长。现默认**不采信**该请求头，只使用直连地址；新增环境变量 `MOOK_TRUST_PROXY`，**确认前面有可信反向代理时**再开启
+- **修复首次初始化并发竞态**：`/api/setup` 的「检查是否已初始化」与「创建用户」改为同一事务，避免并发请求重复初始化
+- **加固会话 Cookie**：经 HTTPS 访问时自动为会话 Cookie 加上 `Secure` 标志（纯 HTTP 的局域网部署不受影响）；退出登录的删除指令同步使用相同取值，确保退出真正生效
+- **口令下限 6 位 → 8 位**：该账号可访问全部服务器凭据，加密备份内亦含明文凭据。适用范围：首次初始化、修改密码、导出加密备份、`MOOK_PASSWORD` 预设值（短于下限将拒绝启动）。**还原备份不设下限**，历史备份不受影响
+- **修复 `docker/docker-compose.yml` 镜像名与版本**：此前为 `mook/mook:0.2.5`（命名空间错误，照此文件拉取必然失败），现为 `nikoyomi/mook:0.3.1`
+- 修正 README 中两处过时的版本描述
 
 ### v0.3.0
 

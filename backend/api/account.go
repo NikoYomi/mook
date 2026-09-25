@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -85,8 +86,8 @@ func changePassword(db *sql.DB) http.HandlerFunc {
 			writeErr(w, http.StatusBadRequest, "请求格式错误")
 			return
 		}
-		if len(in.NewPassword) < 6 {
-			writeErr(w, http.StatusBadRequest, "新密码至少 6 位")
+		if len(in.NewPassword) < auth.MinPasswordLen {
+			writeErr(w, http.StatusBadRequest, fmt.Sprintf("新密码至少 %d 位", auth.MinPasswordLen))
 			return
 		}
 		if !auth.CheckPassword(u.PasswordHash, in.OldPassword) {

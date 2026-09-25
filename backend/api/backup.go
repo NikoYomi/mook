@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"time"
 
+	"mook/auth"
 	"mook/database"
 	"mook/utils"
 )
@@ -34,8 +36,8 @@ func exportBackupEncrypted(db *sql.DB, secret string) http.HandlerFunc {
 			writeErr(w, http.StatusBadRequest, "请求格式错误")
 			return
 		}
-		if len(in.Password) < 6 {
-			writeErr(w, http.StatusBadRequest, "备份密码至少 6 位")
+		if len(in.Password) < auth.MinPasswordLen {
+			writeErr(w, http.StatusBadRequest, fmt.Sprintf("备份密码至少 %d 位", auth.MinPasswordLen))
 			return
 		}
 		payload := buildBackup(db, secret)

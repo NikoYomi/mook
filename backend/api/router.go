@@ -20,7 +20,7 @@ func NewRouter(cfg *config.Config, db *sql.DB, secret string) http.Handler {
 	// ---- 无需登录 ----
 	mux.HandleFunc("GET /api/setup/status", handleSetupStatus(db))
 	mux.HandleFunc("POST /api/setup", handleSetup(db, cfg))
-	mux.HandleFunc("POST /api/login", handleLogin(db))
+	mux.HandleFunc("POST /api/login", handleLogin(db, cfg))
 	mux.HandleFunc("POST /api/logout", handleLogout(db))
 
 	// ---- 需要登录 ----

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { withBase } from '../api/base'
 import { useAuth } from '../store/auth'
 import { useI18n } from '../utils/i18n'
+import { MIN_PASSWORD_LEN } from '../utils/password'
 import {
   AlertIcon,
   CheckCircleIcon,
@@ -45,6 +46,10 @@ export default function Login() {
     e.preventDefault()
     if (setupRequired && password !== confirm) {
       showToast('两次输入的密码不一致', 'err')
+      return
+    }
+    if (setupRequired && password.length < MIN_PASSWORD_LEN) {
+      showToast(`密码至少 ${MIN_PASSWORD_LEN} 位`, 'err')
       return
     }
     setBusy(true)
@@ -88,7 +93,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="card space-y-3 p-6">
             {setupRequired && (
               <p className="rounded-lg border border-info/20 bg-info/10 px-3 py-2 text-center text-xs text-info">
-                首次使用，请设置管理员密码（至少 6 位）
+                首次使用，请设置管理员密码（至少 {MIN_PASSWORD_LEN} 位）
               </p>
             )}
             <label className="block">
@@ -102,7 +107,7 @@ export default function Login() {
                   type={show ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={setupRequired ? '至少 6 位' : '请输入密码'}
+                  placeholder={setupRequired ? `至少 ${MIN_PASSWORD_LEN} 位` : '请输入密码'}
                   className="input py-2.5 pl-9 pr-10"
                   autoComplete={setupRequired ? 'new-password' : 'current-password'}
                   autoFocus
@@ -209,7 +214,7 @@ export default function Login() {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.3.0</span>
+        <span>v0.3.1</span>
       </footer>
     </div>
   )

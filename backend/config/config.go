@@ -15,6 +15,10 @@ type Config struct {
 	FrontendDir string // 前端静态资源目录（构建产物）
 	Password    string // 可选：预设初始密码（MOOK_PASSWORD）
 	Secret      string // 可选：加密密钥（MOOK_SECRET）
+	// TrustProxy 是否采信 X-Forwarded-For（MOOK_TRUST_PROXY=1）。
+	// 仅在应用前面确实有可信反向代理时才开启 —— 该头可被任意伪造，
+	// 无条件信任会让按 IP 的登录限流失效。
+	TrustProxy bool
 }
 
 // Load 从环境变量加载配置
@@ -32,6 +36,7 @@ func Load() *Config {
 		FrontendDir: frontendDir,
 		Password:    os.Getenv("MOOK_PASSWORD"),
 		Secret:      os.Getenv("MOOK_SECRET"),
+		TrustProxy:  getenvBool("MOOK_TRUST_PROXY"),
 	}
 }
 
@@ -53,4 +58,13 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// getenvBool 解析布尔型环境变量，接受 1/true/yes/on（大小写不敏感）
+func getenvBool(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }

@@ -12,6 +12,7 @@ import { useSettings, type ThemeMode } from '../store/settings'
 import { BACKGROUNDS, CYCLE_ORDER, bgStyle } from '../terminal/backgrounds'
 import { friendlyModelName } from '../utils/command'
 import { useI18n } from '../utils/i18n'
+import { MIN_PASSWORD_LEN, isBackupPasswordMissing } from '../utils/password'
 import { isDragSelectingInside } from '../utils/selection'
 import { AI_PROVIDERS, providerByBaseUrl } from '../utils/aiProviders'
 import {
@@ -328,8 +329,8 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
 
   async function handlePassword(e: FormEvent) {
     e.preventDefault()
-    if (newPassword.length < 6) {
-      showToast('新密码至少 6 位', 'err')
+    if (newPassword.length < MIN_PASSWORD_LEN) {
+      showToast(`新密码至少 ${MIN_PASSWORD_LEN} 位`, 'err')
       return
     }
     if (newPassword !== confirmPassword) {
@@ -375,8 +376,8 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   }
 
   async function confirmExport() {
-    if (pwd.length < 6) {
-      showToast('备份密码至少 6 位', 'err')
+    if (pwd.length < MIN_PASSWORD_LEN) {
+      showToast(`备份密码至少 ${MIN_PASSWORD_LEN} 位`, 'err')
       return
     }
     if (pwd !== pwdConfirm) {
@@ -434,8 +435,10 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
 
   async function confirmImport() {
     if (!pendingImportData) return
-    if (pwd.length < 6) {
-      showToast('请输入备份密码（至少 6 位）', 'err')
+    // 还原只用「非空」校验：备份口令是用户既有的，历史备份可能短于当前下限，
+    // 若在此处套用新口令下限，旧备份将永远无法还原。
+    if (isBackupPasswordMissing(pwd)) {
+      showToast('请输入备份密码', 'err')
       return
     }
     setPwdBusy(true)
@@ -956,7 +959,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-soft transition-colors duration-150 hover:text-ink"
                 >
                   <GithubIcon size={15} />
-                  v0.3.0
+                  v0.3.1
                 </a>
               </div>
 
@@ -1042,7 +1045,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
               className="space-y-3 px-5 py-4"
             >
               <label className="block">
-                <span className="label">{pwdModal === 'export' ? '备份密码（至少 6 位）' : '备份密码'}</span>
+                <span className="label">{pwdModal === 'export' ? `备份密码（至少 ${MIN_PASSWORD_LEN} 位）` : '备份密码'}</span>
                 <input
                   type="password"
                   value={pwd}
@@ -1147,7 +1150,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                 ) : (
                   <>
                     <label className="block">
-                      <span className="label">新密码（至少 6 位）</span>
+                      <span className="label">新密码（至少 {MIN_PASSWORD_LEN} 位）</span>
                       <div className="relative">
                         <input
                           type={showNewPwd ? 'text' : 'password'}
