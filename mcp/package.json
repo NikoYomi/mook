@@ -1,0 +1,38 @@
+{
+  "name": "mook-mcp",
+  "version": "0.4.0",
+  "description": "Mook MCP Server —— 让支持 MCP 的 Agent 通过访问密钥管理 Mook 上托管的服务器与常用命令",
+  "type": "module",
+  "bin": {
+    "mook-mcp": "src/index.js"
+  },
+  "main": "src/index.js",
+  "exports": "./src/index.js",
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "mook",
+    "ssh",
+    "vps"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NikoYomi/mook.git",
+    "directory": "mcp"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  }
+}

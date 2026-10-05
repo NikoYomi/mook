@@ -105,6 +105,31 @@ export interface ServerStats {
   ts: number
 }
 
+/** 外部 agent 访问密钥（明文只在创建时返回一次） */
+export interface ApiKey {
+  id: number
+  name: string
+  prefix: string
+  scopes: string[]
+  created_at: string
+  last_used_at: string
+  expires_at: string
+  revoked: boolean
+}
+
+/** 可授权的权限项（由后端给出，前端据此渲染勾选框） */
+export interface ApiKeyScopeDef {
+  key: string
+  label: string
+  description: string
+  dangerous: boolean
+}
+
+export interface CreateApiKeyResult {
+  key: ApiKey
+  plaintext: string
+}
+
 async function doRequest<T>(path: string, options: RequestInit): Promise<T> {
   const res = await fetch(withBase(path), {
     credentials: 'same-origin',
@@ -211,4 +236,15 @@ export const api = {
       { signal: controller.signal },
     ).finally(() => clearTimeout(timer))
   },
+
+  // ---- 外部 agent 访问密钥 ----
+  listKeyScopes: () => request<ApiKeyScopeDef[]>('/api/keys/scopes'),
+  listKeys: () => request<ApiKey[]>('/api/keys'),
+  createKey: (name: string, scopes: string[], expires_in_days: number) =>
+    request<CreateApiKeyResult>('/api/keys', {
+      method: 'POST',
+      body: JSON.stringify({ name, scopes, expires_in_days }),
+    }),
+  revokeKey: (id: number) => request<{ ok: boolean }>(`/api/keys/${id}/revoke`, { method: 'POST' }),
+  deleteKey: (id: number) => request<{ ok: boolean }>(`/api/keys/${id}`, { method: 'DELETE' }),
 }

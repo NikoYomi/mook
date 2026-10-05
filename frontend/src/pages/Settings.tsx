@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Modal from '../components/Modal'
 import { withBase } from '../api/base'
-import { api, type BackupData, type CustomProviderSetting } from '../api/client'
+import { api, type ApiKey, type ApiKeyScopeDef, type BackupData, type CustomProviderSetting } from '../api/client'
 import { useAuth } from '../store/auth'
 import { useAi } from '../store/ai'
 import { useCommands } from '../store/commands'
@@ -18,6 +18,8 @@ import { AI_PROVIDERS, providerByBaseUrl } from '../utils/aiProviders'
 import {
   AlertIcon,
   CheckCircleIcon,
+  CheckIcon,
+  CopyIcon,
   DatabaseIcon,
   DownloadIcon,
   EyeIcon,
@@ -35,7 +37,7 @@ import {
   XCircleIcon,
 } from '../components/icons'
 
-export type SettingsTab = 'general' | 'ai' | 'data' | 'about'
+export type SettingsTab = 'general' | 'ai' | 'keys' | 'data' | 'about'
 
 function unique(list: string[]): string[] {
   return Array.from(new Set(list.filter(Boolean)))
@@ -43,6 +45,15 @@ function unique(list: string[]): string[] {
 
 function normalizeBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, '').toLowerCase()
+}
+
+/** 把后端返回的 RFC3339 时间转成本地可读格式；解析失败时原样返回 */
+function formatTime(raw: string): string {
+  if (!raw) return '—'
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return raw
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 interface Props {
@@ -111,6 +122,99 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   const loadServers = useServers((s) => s.load)
   const refreshAi = useAi((s) => s.refresh)
 
+  // ---- 外部 agent 访问密钥 ----
+  const [keys, setKeys] = useState<ApiKey[]>([])
+  const [scopeDefs, setScopeDefs] = useState<ApiKeyScopeDef[]>([])
+  const [keysLoaded, setKeysLoaded] = useState(false)
+  const [newKeyOpen, setNewKeyOpen] = useState(false)
+  const [newKeyName, setNewKeyName] = useState('')
+  const [newKeyScopes, setNewKeyScopes] = useState<string[]>(['servers:read', 'commands:read'])
+  const [newKeyDays, setNewKeyDays] = useState(0)
+  const [newKeyBusy, setNewKeyBusy] = useState(false)
+  // 创建成功后的一次性明文展示
+  const [createdKey, setCreatedKey] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  // 删除确认
+  const [keyToDelete, setKeyToDelete] = useState<ApiKey | null>(null)
+  const [keyBusy, setKeyBusy] = useState(false)
+  const newKeyBoxRef = useRef<HTMLDivElement>(null)
+  const createdKeyBoxRef = useRef<HTMLDivElement>(null)
+  const deleteKeyBoxRef = useRef<HTMLDivElement>(null)
+
+  const loadKeys = async () => {
+    try {
+      const list = await api.listKeys()
+      setKeys(Array.isArray(list) ? list : [])
+      setKeysLoaded(true)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '读取密钥失败', 'err')
+    }
+  }
+
+  const handleCreateKey = async (e: FormEvent) => {
+    e.preventDefault()
+    const name = newKeyName.trim()
+    if (!name) {
+      showToast('请填写密钥名称', 'err')
+      return
+    }
+    if (newKeyScopes.length === 0) {
+      showToast('请至少选择一项权限', 'err')
+      return
+    }
+    setNewKeyBusy(true)
+    try {
+      const res = await api.createKey(name, newKeyScopes, newKeyDays)
+      setNewKeyOpen(false)
+      setNewKeyName('')
+      setNewKeyScopes(['servers:read', 'commands:read'])
+      setNewKeyDays(0)
+      setCreatedKey(res.plaintext)
+      setCopied(false)
+      await loadKeys()
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '创建密钥失败', 'err')
+    } finally {
+      setNewKeyBusy(false)
+    }
+  }
+
+  const handleCopyKey = async () => {
+    if (!createdKey) return
+    const { copyText } = await import('../utils/clipboard')
+    const ok = await copyText(createdKey)
+    setCopied(ok)
+    if (!ok) showToast('复制失败，请手动选中复制', 'err')
+  }
+
+  const handleRevokeKey = async (key: ApiKey) => {
+    setKeyBusy(true)
+    try {
+      await api.revokeKey(key.id)
+      showToast(`已撤销「${key.name}」`)
+      await loadKeys()
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '撤销失败', 'err')
+    } finally {
+      setKeyBusy(false)
+    }
+  }
+
+  const handleDeleteKey = async () => {
+    if (!keyToDelete) return
+    setKeyBusy(true)
+    try {
+      await api.deleteKey(keyToDelete.id)
+      showToast(`已删除「${keyToDelete.name}」`)
+      setKeyToDelete(null)
+      await loadKeys()
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '删除失败', 'err')
+    } finally {
+      setKeyBusy(false)
+    }
+  }
+
   // 通用设置
   const theme = useSettings((s) => s.theme)
   const english = useSettings((s) => s.english)
@@ -141,6 +245,19 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
       setConfirmPassword('')
     }
   }, [open, initialTab])
+
+  // 访问密钥：切到该 tab 时懒加载（避免每次打开设置都请求）
+  useEffect(() => {
+    if (!open || tab !== 'keys' || keysLoaded) return
+    void loadKeys()
+    api
+      .listKeyScopes()
+      .then((defs) => setScopeDefs(Array.isArray(defs) ? defs : []))
+      .catch(() => {
+        /* 权限清单拉取失败不影响已有密钥的展示 */
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tab, keysLoaded])
 
   useEffect(() => {
     if (!open) return
@@ -488,6 +605,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   const menu: { key: SettingsTab; label: string; icon: typeof SparklesIcon }[] = [
     { key: 'general', label: t('general'), icon: SettingsIcon },
     { key: 'ai', label: t('ai'), icon: SparklesIcon },
+    { key: 'keys', label: t('keys'), icon: KeyIcon },
     { key: 'data', label: t('data'), icon: DatabaseIcon },
     { key: 'about', label: t('about'), icon: TerminalIcon },
   ]
@@ -885,6 +1003,125 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
             </div>
           )}
 
+          {tab === 'keys' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[12px] text-soft">
+                  创建访问密钥后，使用密钥以便你的 agents 管理你的 vps。
+                </p>
+                <button
+                  onClick={() => setNewKeyOpen(true)}
+                  className="btn-primary shrink-0 px-4 py-2 text-sm"
+                  title="创建一个新的访问密钥"
+                >
+                  <KeyIcon size={15} /> 新建密钥
+                </button>
+              </div>
+
+              {keys.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-line bg-panel-2 p-6 text-center">
+                  <p className="text-[13px] text-faint">还没有创建任何密钥</p>
+                  <p className="mt-1 text-[12px] text-faint">
+                    点击「新建密钥」开始，创建后请立即复制保存
+                  </p>
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {keys.map((k) => {
+                    const expired =
+                      !!k.expires_at && new Date(k.expires_at).getTime() < Date.now()
+                    const status = k.revoked ? '已撤销' : expired ? '已过期' : '有效'
+                    const statusCls = k.revoked || expired ? 'text-danger' : 'text-accent'
+                    return (
+                      <li
+                        key={k.id}
+                        className="rounded-lg border border-line bg-panel-2 p-3.5"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
+                              <span className="truncate">{k.name}</span>
+                              <span className={`shrink-0 text-[11px] ${statusCls}`}>
+                                · {status}
+                              </span>
+                            </p>
+                            <p className="mt-0.5 font-mono text-[11px] text-faint">
+                              {k.prefix}••••••••••••
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {!k.revoked && (
+                              <button
+                                onClick={() => handleRevokeKey(k)}
+                                disabled={keyBusy}
+                                className="rounded-md px-2 py-1 text-[12px] text-soft transition-colors duration-150 hover:bg-raise hover:text-ink disabled:opacity-50"
+                                title="撤销后该密钥立即失效，但记录保留"
+                              >
+                                撤销
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setKeyToDelete(k)}
+                              disabled={keyBusy}
+                              className="rounded-md px-2 py-1 text-[12px] text-danger transition-colors duration-150 hover:bg-danger-dim disabled:opacity-50"
+                              title="彻底删除该密钥记录"
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {k.scopes.length === 0 ? (
+                            <span className="text-[11px] text-faint">未授予任何权限</span>
+                          ) : (
+                            k.scopes.map((s) => {
+                              const def = scopeDefs.find((d) => d.key === s)
+                              return (
+                                <span
+                                  key={s}
+                                  title={def?.description}
+                                  className={`rounded px-1.5 py-0.5 text-[10px] ${
+                                    def?.dangerous
+                                      ? 'bg-danger-dim text-danger'
+                                      : 'bg-accent-dim text-accent'
+                                  }`}
+                                >
+                                  {def?.label ?? s}
+                                </span>
+                              )
+                            })
+                          )}
+                        </div>
+
+                        <p className="mt-2 text-[11px] text-faint">
+                          创建于 {formatTime(k.created_at)} ·{' '}
+                          {k.last_used_at && !k.last_used_at.startsWith('0001')
+                            ? `最后使用 ${formatTime(k.last_used_at)}`
+                            : '从未使用'}
+                          {k.expires_at && !k.expires_at.startsWith('0001')
+                            ? ` · 有效期至 ${formatTime(k.expires_at)}`
+                            : ' · 永不过期'}
+                        </p>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+
+              <div className="rounded-lg border border-line bg-panel-2 p-3.5">
+                <p className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
+                  <ShieldIcon size={14} className="text-accent" /> 安全提示
+                </p>
+                <ul className="mt-3 space-y-1.5 text-[12px] text-soft">
+                  <li>· 密钥明文只在创建时显示一次，Mook 仅保存其摘要，无法找回</li>
+                  <li>· 「远程执行」权限等同于用 SSH 登录全部服务器，请按需授予</li>
+                  <li>· 不再使用的密钥请及时撤销；怀疑泄露时立即撤销并新建</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
           {tab === 'data' && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
@@ -959,7 +1196,7 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                   className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-soft transition-colors duration-150 hover:text-ink"
                 >
                   <GithubIcon size={15} />
-                  v0.3.1
+                  v0.4.0
                 </a>
               </div>
 
@@ -1223,6 +1460,265 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
           document.body
         )}
     </Modal>
+
+      {/* 新建访问密钥 */}
+      {newKeyOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target !== e.currentTarget || newKeyBusy) return
+              // 框选拖拽保护：输入框内选中文字拖到弹窗外松开时不关闭
+              if (isDragSelectingInside(newKeyBoxRef.current)) return
+              setNewKeyOpen(false)
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="新建访问密钥"
+          >
+            <div
+              ref={newKeyBoxRef}
+              className="w-full max-w-md overflow-hidden rounded-xl border border-line bg-panel shadow-2xl shadow-black/50"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-line px-6 py-5">
+                <h3 className="flex items-center gap-1.5 text-base font-semibold tracking-tight text-ink">
+                  <KeyIcon size={15} className="shrink-0 text-accent" /> 新建访问密钥
+                </h3>
+                <p className="mt-1 text-[13px] text-soft">
+                  为外部 Agent 授予访问 Mook 的权限，建议按用途分别创建
+                </p>
+              </div>
+              <form onSubmit={handleCreateKey} className="space-y-4 px-6 py-5">
+                <label className="block">
+                  <span className="label">名称</span>
+                  <input
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    className="input"
+                    placeholder="例如：Claude Desktop"
+                    maxLength={64}
+                    autoFocus
+                  />
+                </label>
+
+                <div>
+                  <span className="label">权限</span>
+                  <div className="space-y-1.5">
+                    {(scopeDefs.length > 0
+                      ? scopeDefs
+                      : [
+                          { key: 'servers:read', label: '查看服务器', description: '', dangerous: false },
+                          { key: 'servers:write', label: '管理服务器', description: '', dangerous: false },
+                          { key: 'servers:exec', label: '远程执行', description: '', dangerous: true },
+                          { key: 'commands:read', label: '查看常用命令', description: '', dangerous: false },
+                          { key: 'commands:write', label: '管理常用命令', description: '', dangerous: false },
+                        ]
+                    ).map((def) => {
+                      const checked = newKeyScopes.includes(def.key)
+                      return (
+                        <label
+                          key={def.key}
+                          className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 transition-colors duration-150 ${
+                            checked
+                              ? def.dangerous
+                                ? 'border-danger/40 bg-danger-dim'
+                                : 'border-accent/30 bg-accent-dim'
+                              : 'border-line bg-panel-2 hover:border-line/80'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) =>
+                              setNewKeyScopes((prev) =>
+                                e.target.checked
+                                  ? [...prev, def.key]
+                                  : prev.filter((s) => s !== def.key),
+                              )
+                            }
+                            className="mt-0.5 shrink-0"
+                          />
+                          <span className="min-w-0">
+                            <span
+                              className={`flex items-center gap-1.5 text-[13px] font-medium ${
+                                def.dangerous ? 'text-danger' : 'text-ink'
+                              }`}
+                            >
+                              {def.label}
+                              {def.dangerous && <AlertIcon size={12} className="shrink-0" />}
+                            </span>
+                            {def.description && (
+                              <span className="mt-0.5 block text-[11px] text-soft">
+                                {def.description}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <label className="block">
+                  <span className="label">有效期</span>
+                  <select
+                    value={newKeyDays}
+                    onChange={(e) => setNewKeyDays(Number(e.target.value))}
+                    className="input"
+                  >
+                    <option value={0}>永不过期</option>
+                    <option value={7}>7 天</option>
+                    <option value={30}>30 天</option>
+                    <option value={90}>90 天</option>
+                    <option value={365}>1 年</option>
+                  </select>
+                </label>
+
+                <div className="flex justify-end gap-2 border-t border-line pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setNewKeyOpen(false)}
+                    disabled={newKeyBusy}
+                    className="btn-ghost"
+                  >
+                    取消
+                  </button>
+                  <button type="submit" disabled={newKeyBusy} className="btn-primary">
+                    {newKeyBusy ? (
+                      <>
+                        <LoaderIcon size={14} className="animate-spin" /> 创建中…
+                      </>
+                    ) : (
+                      '创建密钥'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* 一次性明文展示：关闭后无法再次查看 */}
+      {createdKey &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target !== e.currentTarget) return
+              if (isDragSelectingInside(createdKeyBoxRef.current)) return
+              setCreatedKey(null)
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="访问密钥已创建"
+          >
+            <div
+              ref={createdKeyBoxRef}
+              className="w-full max-w-lg overflow-hidden rounded-xl border border-line bg-panel shadow-2xl shadow-black/50"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-line px-6 py-5">
+                <h3 className="flex items-center gap-1.5 text-base font-semibold tracking-tight text-ink">
+                  <CheckCircleIcon size={15} className="shrink-0 text-accent" /> 访问密钥已创建
+                </h3>
+                <p className="mt-1 text-[13px] text-soft">
+                  请立即复制并妥善保存 —— 关闭后
+                  <strong className="text-danger">无法再次查看</strong>
+                </p>
+              </div>
+              <div className="space-y-3 px-6 py-5">
+                <div className="flex items-center gap-2">
+                  <code className="min-w-0 flex-1 break-all rounded-lg border border-line bg-canvas px-3 py-2.5 font-mono text-[12px] text-ink select-all">
+                    {createdKey}
+                  </code>
+                  <button
+                    onClick={handleCopyKey}
+                    className="btn-primary shrink-0 px-3 py-2.5"
+                    title="复制到剪贴板"
+                  >
+                    {copied ? <CheckIcon size={15} /> : <CopyIcon size={15} />}
+                    <span className="ml-1 text-[12px]">{copied ? '已复制' : '复制'}</span>
+                  </button>
+                </div>
+                <div className="rounded-lg border border-line bg-panel-2 p-3">
+                  <p className="text-[12px] font-medium text-ink">配置到 MCP 客户端</p>
+                  <p className="mt-1 text-[11px] text-soft">
+                    在客户端配置中填入以下环境变量，Mook 地址即你平时访问的地址：
+                  </p>
+                  <pre className="mt-2 overflow-x-auto rounded border border-line bg-canvas p-2.5 font-mono text-[11px] text-soft">
+{`MOOK_URL=http://<你的-Mook-地址>:5866
+MOOK_API_KEY=${createdKey}`}
+                  </pre>
+                </div>
+                <div className="flex justify-end border-t border-line pt-4">
+                  <button onClick={() => setCreatedKey(null)} className="btn-primary">
+                    我已保存
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* 删除密钥确认 */}
+      {keyToDelete &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target !== e.currentTarget || keyBusy) return
+              if (isDragSelectingInside(deleteKeyBoxRef.current)) return
+              setKeyToDelete(null)
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="删除访问密钥"
+          >
+            <div
+              ref={deleteKeyBoxRef}
+              className="w-full max-w-sm overflow-hidden rounded-xl border border-line bg-panel shadow-2xl shadow-black/50"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 pb-2 pt-6">
+                <h3 className="flex items-center gap-1.5 text-base font-semibold tracking-tight text-ink">
+                  <AlertIcon size={15} className="shrink-0 text-danger" /> 删除访问密钥
+                </h3>
+                <p className="mt-1.5 text-[13px] text-soft">
+                  将永久删除「<strong className="text-ink">{keyToDelete.name}</strong>
+                  」的记录，使用该密钥的 Agent 会立即失去访问权限且无法恢复。
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 px-6 pb-6 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setKeyToDelete(null)}
+                  disabled={keyBusy}
+                  className="btn-ghost"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteKey}
+                  disabled={keyBusy}
+                  className="btn-primary bg-danger-dim text-danger hover:bg-danger-dim"
+                >
+                  {keyBusy ? (
+                    <>
+                      <LoaderIcon size={14} className="animate-spin" /> 删除中…
+                    </>
+                  ) : (
+                    '确认删除'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* 悬浮提示（2 秒自动消失） */}
       {toast &&

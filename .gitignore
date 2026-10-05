@@ -8,6 +8,10 @@ secret.key
 frontend/node_modules/
 frontend/dist/
 
+# MCP 服务器（Node）
+mcp/node_modules/
+mcp/npm-debug.log*
+
 # Go 构建产物
 backend/mook
 backend/*.exe

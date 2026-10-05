@@ -26,6 +26,7 @@ const zh: Dict = {
   // 设置
   general: '通用设置',
   ai: 'AI 助手',
+  keys: '访问密钥',
   data: '数据管理',
   about: '关于',
   appearance: '外观',
@@ -79,6 +80,7 @@ const en: Dict = {
 
   general: 'General',
   ai: 'AI Assistant',
+  keys: 'Access Keys',
   data: 'Data',
   about: 'About',
   appearance: 'Appearance',

@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.3.1-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.4.0-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.3.1** 
+**当前版本：v0.4.0** 
 
 > 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
@@ -230,7 +230,8 @@ mook/
 - ✅ v0.2.9 —— 飞牛 fnOS 应用包（.fpk）+ 统一网关接入 + 多平台 Release 产物
 - ✅ v0.2.6 —— 备份跨环境还原修复（凭据随备份重加密）/ 提示改悬浮 Toast
 - ✅ v0.3.0 —— 发布产物精简为 3 个并统一命名 / Windows 真安装程序 / 终端选中即复制与双击粘贴
-- ✅ v0.3.1 —— 安全修复：登录限流恢复生效 / 限流内存回收 / 可信代理开关 / 口令下限与 Cookie 加固（当前）
+- ✅ v0.3.1 —— 安全修复：登录限流恢复生效 / 限流内存回收 / 可信代理开关 / 口令下限与 Cookie 加固
+- ✅ v0.4.0 —— 访问密钥（API Key）+ Agent 接口 + MCP 服务器，外部 Agent 可接入管理服务器与常用命令（当前）
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
 - ⏳ v2.0 —— AI DevOps 助手
@@ -238,6 +239,21 @@ mook/
 ---
 
 ## 📄 更新日志
+
+### v0.4.0
+
+> 本次新增**外部 Agent 接入能力**：Agent 通过访问密钥调用 Mook，管理托管的服务器与常用命令。
+
+- **访问密钥（API Key）**：设置页新增「访问密钥」标签，可创建 / 撤销 / 删除密钥，按权限（scope）与有效期精细授权
+  - 密钥格式 `mk_` + 48 位随机十六进制，服务端只存 SHA-256 摘要，**明文仅创建时显示一次**
+  - 五项权限：`servers:read` / `servers:write` / `servers:exec` / `commands:read` / `commands:write`，亦支持 `*`
+- **Agent 接口 `/api/agent/*`**：14 个接口覆盖服务器增删改查与实时状态、远程命令执行、SFTP 读写文件、常用命令增删改查
+  - 鉴权支持 `Authorization: Bearer <key>` 与 `X-API-Key: <key>`
+  - 远程执行默认超时 60 秒、上限 600 秒；读文件上限 1 MiB
+  - 面向浏览器会话的接口与密钥鉴权**并存但隔离**，账户改密与备份导出等高风险操作**不对外开放**
+- **MCP 服务器**：仓库新增 `mcp/` 目录，开箱即用的 MCP 服务器把上述接口封装成 14 个工具，Claude Desktop / Cursor / Cline 等客户端配置 `MOOK_URL` 与 `MOOK_API_KEY` 即可接入
+- **常用命令支持单条增删改**：后端新增按 id 的读取 / 新增 / 更新 / 删除，Agent 改一条命令不再需要重写整份列表（前端原有的全量保存路径保持不变）
+- 访问日志新增 `[agent]` 记录，**只记密钥 id、方法、路径与状态码**，不记录命令内容、主机与文件路径
 
 ### v0.3.1
 
@@ -366,4 +382,5 @@ mook/
 
 - [完整使用介绍（博客）](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 - [API 一览](docs/API.md)
+- [MCP 服务器（外部 Agent 接入）](mcp/README.md)
 - 开发变更记录保存在本地工作区「计划」文件夹（不随仓库发布）

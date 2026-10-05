@@ -1,7 +1,9 @@
 package database
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -65,11 +67,26 @@ func migrate(db *sql.DB) error {
 			pinned INTEGER NOT NULL DEFAULT 0,
 			created_at TEXT NOT NULL DEFAULT ''
 		)`,
+		// 外部 agent 访问密钥。只存 sha256 摘要，明文仅在创建时返回一次。
+		`CREATE TABLE IF NOT EXISTS api_keys (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			prefix TEXT NOT NULL DEFAULT '',
+			key_hash TEXT NOT NULL,
+			scopes TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			last_used_at TEXT NOT NULL DEFAULT '',
+			expires_at TEXT NOT NULL DEFAULT '',
+			revoked INTEGER NOT NULL DEFAULT 0
+		)`,
 	}
 	for _, s := range stmts {
 		if _, err := db.Exec(s); err != nil {
 			return fmt.Errorf("初始化表结构失败: %w", err)
 		}
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)`); err != nil {
+		return fmt.Errorf("初始化表结构失败: %w", err)
 	}
 	// 增量迁移：为已有数据库补充新增列
 	if err := ensureColumn(db, "servers", "last_connected_at", "TEXT NOT NULL DEFAULT ''"); err != nil {
@@ -114,4 +131,25 @@ func ensureColumn(db *sql.DB, table, column, ddl string) error {
 // nowStr 统一的存储时间格式
 func nowStr() string {
 	return time.Now().Format(time.RFC3339)
+}
+
+// parseTime 解析存储的 RFC3339 时间；空串或非法值返回零值
+func parseTime(s string) time.Time {
+	if s == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+// randomHex 生成 n 字节的随机十六进制串（用于会话令牌、API 密钥等）
+func randomHex(n int) (string, error) {
+	buf := make([]byte, n)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }

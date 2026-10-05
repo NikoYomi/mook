@@ -214,7 +214,7 @@ export default function Login() {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.3.1</span>
+        <span>v0.4.0</span>
       </footer>
     </div>
   )

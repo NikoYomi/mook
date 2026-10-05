@@ -53,6 +53,45 @@ func NewRouter(cfg *config.Config, db *sql.DB, secret string) http.Handler {
 	mux.Handle("POST /api/backup/restore", authed(http.HandlerFunc(restoreBackup(db, secret))))
 	mux.Handle("GET /ws/terminal", authed(http.HandlerFunc(websocket.HandleTerminal(db, secret))))
 
+	// ---- 访问密钥管理（浏览器侧：仍需登录，用会话 Cookie）----
+	mux.Handle("GET /api/keys/scopes", authed(http.HandlerFunc(listKeyScopes())))
+	mux.Handle("GET /api/keys", authed(http.HandlerFunc(listKeys(db))))
+	mux.Handle("POST /api/keys", authed(http.HandlerFunc(createKey(db))))
+	mux.Handle("POST /api/keys/{id}/revoke", authed(http.HandlerFunc(revokeKey(db))))
+	mux.Handle("DELETE /api/keys/{id}", authed(http.HandlerFunc(deleteKey(db))))
+
+	// ---- 外部 agent 接口（Bearer 密钥，按 scope 授权）----
+	// 与 /api/* 浏览器接口完全分离：认证方式不同，且便于将来单独限流。
+	// 注意：账户与备份接口刻意不对外开放 —— 改密码、导出备份属高危操作。
+	mux.Handle("GET /api/agent/servers",
+		auth.RequireAPIKey(db, "servers:read")(http.HandlerFunc(agentListServers(db))))
+	mux.Handle("POST /api/agent/servers",
+		auth.RequireAPIKey(db, "servers:write")(http.HandlerFunc(agentCreateServer(db, secret))))
+	mux.Handle("GET /api/agent/servers/{id}",
+		auth.RequireAPIKey(db, "servers:read")(http.HandlerFunc(agentGetServer(db, secret))))
+	mux.Handle("PUT /api/agent/servers/{id}",
+		auth.RequireAPIKey(db, "servers:write")(http.HandlerFunc(agentUpdateServer(db, secret))))
+	mux.Handle("DELETE /api/agent/servers/{id}",
+		auth.RequireAPIKey(db, "servers:write")(http.HandlerFunc(agentDeleteServer(db))))
+	mux.Handle("POST /api/agent/servers/{id}/exec",
+		auth.RequireAPIKey(db, "servers:exec")(http.HandlerFunc(agentExec(db, secret))))
+	mux.Handle("GET /api/agent/servers/{id}/files",
+		auth.RequireAPIKey(db, "servers:exec")(http.HandlerFunc(agentListFiles(db, secret))))
+	mux.Handle("GET /api/agent/servers/{id}/files/read",
+		auth.RequireAPIKey(db, "servers:exec")(http.HandlerFunc(agentReadFile(db, secret))))
+	mux.Handle("POST /api/agent/servers/{id}/files/write",
+		auth.RequireAPIKey(db, "servers:exec")(http.HandlerFunc(agentWriteFile(db, secret))))
+	mux.Handle("GET /api/agent/commands",
+		auth.RequireAPIKey(db, "commands:read")(http.HandlerFunc(agentListCommands(db))))
+	mux.Handle("POST /api/agent/commands",
+		auth.RequireAPIKey(db, "commands:write")(http.HandlerFunc(agentCreateCommand(db))))
+	mux.Handle("PUT /api/agent/commands/{id}",
+		auth.RequireAPIKey(db, "commands:write")(http.HandlerFunc(agentUpdateCommand(db))))
+	mux.Handle("DELETE /api/agent/commands/{id}",
+		auth.RequireAPIKey(db, "commands:write")(http.HandlerFunc(agentDeleteCommand(db))))
+	mux.Handle("POST /api/agent/commands/{id}/use",
+		auth.RequireAPIKey(db, "commands:read")(http.HandlerFunc(agentUseCommand(db))))
+
 	// ---- 前端静态资源（SPA 回退）----
 	mux.Handle("/", serveFrontend(cfg))
 

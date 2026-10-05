@@ -12,7 +12,7 @@ services:
     # 本文件用于「源码构建」（见 README 方式二），此处的 image 只是本地构建产物的标签。
     # 使用发布镜像请改用 ghcr.io/nikoyomi/mook（README 方式一）。
     # 版本号需与当前发布版本保持一致，发版时同步更新。
-    image: nikoyomi/mook:0.3.1
+    image: nikoyomi/mook:0.4.0
     container_name: mook
     ports:
       - "5866:5866"

@@ -135,3 +135,102 @@
   - `{"type":"output","data":"..."}`
   - `{"type":"error","message":"..."}`
   - `{"type":"closed","reason":"..."}`
+
+## 访问密钥（Agent 接入）
+
+给外部 Agent（MCP 客户端 / 技能插件 / 自写脚本）使用的 API 密钥。密钥管理接口走浏览器 Cookie 会话，`/api/agent/*` 走密钥鉴权。
+
+密钥格式：`mk_` + 48 位随机十六进制（共 51 字符）。服务端只保存 SHA-256 摘要，**明文仅在创建时返回一次**，之后无法再次读取。
+
+### 密钥管理（需登录）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | /api/keys/scopes | 可用权限清单（含名称、说明、是否高危） |
+| GET | /api/keys | 密钥列表（不含明文，仅前缀） |
+| POST | /api/keys | 创建密钥 `{name, scopes, expires_in_days}` |
+| POST | /api/keys/{id}/revoke | 撤销密钥（保留记录，立即失效） |
+| DELETE | /api/keys/{id} | 删除密钥记录 |
+
+创建响应（`plaintext` 只出现这一次）：
+
+```json
+{
+  "key": { "id": 1, "name": "运维 Agent", "prefix": "mk_07867484", "scopes": ["servers:read"], "created_at": "...", "last_used_at": "...", "expires_at": "...", "revoked": false },
+  "plaintext": "mk_07867484fd51c2e2151d303b99e87fcad75d18f63ece871c"
+}
+```
+
+### 权限（scopes）
+
+| 权限 | 说明 | 是否高危 |
+| --- | --- | --- |
+| servers:read | 查看服务器 | 否 |
+| servers:write | 管理服务器（增删改） | 否 |
+| servers:exec | 远程执行命令、读写文件 | 是 |
+| commands:read | 查看常用命令 | 否 |
+| commands:write | 管理常用命令（增删改） | 否 |
+
+`*` 表示全部权限。
+
+### 鉴权方式
+
+两种请求头任选其一：
+
+```
+Authorization: Bearer mk_xxxxxxxx...
+X-API-Key: mk_xxxxxxxx...
+```
+
+失败响应：`401`（缺少 / 无效 / 已撤销 / 已过期）、`403`（缺少权限，形如 `{"error":"密钥缺少权限：servers:exec"}`）。
+
+### Agent 接口
+
+| 方法 | 路径 | 所需权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | /api/agent/servers | servers:read | 服务器列表（不含凭据） |
+| POST | /api/agent/servers | servers:write | 新增服务器 |
+| GET | /api/agent/servers/{id} | servers:read | 服务器详情 + 实时状态 |
+| PUT | /api/agent/servers/{id} | servers:write | 更新服务器（凭据留空表示不改） |
+| DELETE | /api/agent/servers/{id} | servers:write | 删除服务器 |
+| POST | /api/agent/servers/{id}/exec | servers:exec | 执行命令 `{command, timeout_sec}` |
+| GET | /api/agent/servers/{id}/files | servers:exec | 列目录 `?path=/etc` |
+| GET | /api/agent/servers/{id}/files/read | servers:exec | 读文件 `?path=/etc/hosts`（上限 1 MiB） |
+| POST | /api/agent/servers/{id}/files/write | servers:exec | 写文件 `{path, content}` |
+| GET | /api/agent/commands | commands:read | 常用命令列表 |
+| POST | /api/agent/commands | commands:write | 新增常用命令 |
+| PUT | /api/agent/commands/{id} | commands:write | 更新常用命令 |
+| DELETE | /api/agent/commands/{id} | commands:write | 删除常用命令 |
+| POST | /api/agent/commands/{id}/use | commands:read | 使用计数 +1 |
+
+执行命令响应（命令本身失败也返回 200，用 `ok` 区分）：
+
+```json
+{ "ok": true, "output": "Linux vps 6.1.0 ...", "exit_error": "" }
+```
+
+`timeout_sec` 默认 60，取值范围 1–600。
+
+**刻意不对外开放**：账户设置（改密码 / 改用户名）与备份导出还原属于高危操作，仅限浏览器 Cookie 会话，密钥无法访问。
+
+### MCP 服务器
+
+仓库 `mcp/` 目录提供一个即用的 MCP 服务器，把上述接口封装成 14 个工具：
+
+```bash
+cd mcp && npm install
+```
+
+客户端配置（Claude Desktop / Cursor 等）：
+
+```json
+{
+  "mcpServers": {
+    "mook": {
+      "command": "node",
+      "args": ["/绝对路径/mook/mcp/src/index.js"],
+      "env": { "MOOK_URL": "http://192.168.31.10:5866", "MOOK_API_KEY": "mk_..." }
+    }
+  }
+}
+```
