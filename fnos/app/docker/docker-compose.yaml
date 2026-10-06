@@ -1,11 +1,18 @@
 # Mook · 飞牛 fnOS 应用包编排文件
 #
-# 访问方式：统一网关（gatewayPrefix=/app/mook，gatewaySocket=app.sock）
-#   - 容器内服务监听 ${TRIM_APPDEST}/app.sock（挂载进容器后为 /app/target/app.sock）
-#   - 飞牛 fnOS 校验登录态后把 /app/mook/* 的请求（含 WebSocket）转发到该 Socket
-#   - 不发布宿主机端口，避免绕过网关的直连访问与端口冲突
+# 访问方式（两种并存）：
 #
-# 如需临时排查问题，可取消下面 ports 段落的注释，即可通过 http://<NAS>:5866 直连。
+#   1) 统一网关（gatewayPrefix=/app/mook，gatewaySocket=app.sock）
+#      飞牛 fnOS 校验登录态后把 /app/mook/* 的请求（含 WebSocket）转发到该 Socket，
+#      应用中心里的图标走这条路，浏览器里看到的是 Mook 网页端。
+#
+#   2) 宿主机端口直连（http://<NAS>:5866）
+#      外部程序（如 dsh-mook-skill 插件、MCP 客户端、脚本）无法走网关的登录态，
+#      需要一个标准 HTTP 端点。后端 TCP 与 Socket 监听并存（backend/main.go），
+#      因此两种访问方式互不影响。
+#
+# 鉴权说明：直连端口走 Mook 自己的登录与访问密钥体系，不经过飞牛登录态。
+# 这与独立 Docker 部署完全一致，未引入额外暴露面。
 
 services:
   mook:
@@ -26,5 +33,6 @@ services:
       - MOOK_SOCKET=/app/target/app.sock
       # 网关前缀：用于剥离路由前缀并注入前端 base 路径
       - MOOK_BASE_PATH=/app/mook
-    # ports:
-    #   - "${TRIM_SERVICE_PORT}:5866"
+    ports:
+      # TRIM_SERVICE_PORT 由飞牛分配/校验（manifest 中 checkport=true）
+      - "${TRIM_SERVICE_PORT}:5866"

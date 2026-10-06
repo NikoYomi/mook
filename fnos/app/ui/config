@@ -9,6 +9,17 @@
       "gatewaySocket": "app.sock",
       "url": "/app/mook",
       "allUsers": true
+    },
+    "mook.direct": {
+      "title": "Mook (直连)",
+      "desc": "供外部程序（插件 / MCP 客户端 / 脚本）直连的 HTTP 端点",
+      "icon": "images/icon_{0}.png",
+      "type": "url",
+      "protocol": "http",
+      "port": "${TRIM_SERVICE_PORT}",
+      "url": "/",
+      "allUsers": true,
+      "noDisplay": true
     }
   }
 }

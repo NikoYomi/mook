@@ -13,5 +13,5 @@ os_min_version=1.2.0
 desktop_uidir=ui
 desktop_applaunchname=mook.main
 
-checkport=false
+checkport=true
 ctl_stop=true

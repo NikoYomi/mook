@@ -314,10 +314,17 @@ export MOOK_API_KEY=mk_你的密钥
 - **界面精简**：移除主页左上角的图标与「Mook」名称，导航更紧凑
 - **macOS 首次运行提示**：安装包未做代码签名，若提示「无法验证开发者」，请右键 →「打开」，或执行 `xattr -dr com.apple.quarantine ./mook`
 
+### 未发布
+
+- **飞牛 fnOS 应用包支持外部 Agent 直连**：修正套件版「只能通过统一网关访问、插件连不上」的问题。容器除供网关使用的 Unix Socket 外，**同时发布宿主机端口**（`checkport=true`，由飞牛分配/校验），外部程序可通过 `http://<NAS>:<端口>` 直连
+  - 后端 TCP 与 Socket 监听本就并存（`backend/main.go`），补齐端口映射即可，两种访问方式互不影响
+  - 直连端口走 Mook 自己的登录与访问密钥体系，不经过飞牛登录态，与独立 Docker 部署一致
+  - 应用中心主图标仍走网关（iframe + 登录态），另注册一个隐藏入口 `mook.direct` 承载直连地址
+
 ### v0.2.9
 
 - **飞牛 fnOS 应用包**：新增 `fnos/` 打包目录，可构建 `.fpk` 安装包，支持在飞牛 fnOS 应用中心安装使用（`platform=all`，单包同时适配 x86 与 ARM）
-- **统一网关接入**：支持通过 fnOS 统一网关访问（复用系统访问域名、接入 NAS 登录态、免端口冲突），HTTP 与 WebSocket 均经网关转发；应用不占用宿主机端口
+- **统一网关接入**：支持通过 fnOS 统一网关访问（复用系统访问域名、接入 NAS 登录态、免端口冲突），HTTP 与 WebSocket 均经网关转发
 - **子路径部署能力**：同一份前端构建产物既能在根路径运行，也能部署在 `/app/mook` 等子路径下；后端可额外监听 Unix Socket（`MOOK_SOCKET`），并按 `MOOK_BASE_PATH` 剥离访问前缀
 - **多平台发布**：打标签时自动构建 Windows / macOS（arm64 + amd64）/ Linux（amd64 + arm64）可执行文件与 fnOS 应用包，统一挂到 GitHub Release
 - **兼容性**：自建 Docker 部署**不受影响** —— 新增能力均为可选，`docker/docker-compose.yml` 未做改动
