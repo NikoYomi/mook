@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.4.0-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.4.2-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.4.0** 
+**当前版本：v0.4.2** 
 
 > 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
@@ -265,7 +265,8 @@ export MOOK_API_KEY=mk_你的密钥
 - ✅ v0.2.6 —— 备份跨环境还原修复（凭据随备份重加密）/ 提示改悬浮 Toast
 - ✅ v0.3.0 —— 发布产物精简为 3 个并统一命名 / Windows 真安装程序 / 终端选中即复制与双击粘贴
 - ✅ v0.3.1 —— 安全修复：登录限流恢复生效 / 限流内存回收 / 可信代理开关 / 口令下限与 Cookie 加固
-- ✅ v0.4.0 —— 访问密钥（API Key）+ Agent 接口 + MCP 服务器，外部 Agent 可接入管理服务器与常用命令（当前）
+- ✅ v0.4.0 —— 访问密钥（API Key）+ Agent 接口 + MCP 服务器，外部 Agent 可接入管理服务器与常用命令
+- ✅ v0.4.2 —— 飞牛 fnOS 套件版开放宿主机端口，外部 Agent / 插件可直连（当前）
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
 - ⏳ v2.0 —— AI DevOps 助手
@@ -314,7 +315,7 @@ export MOOK_API_KEY=mk_你的密钥
 - **界面精简**：移除主页左上角的图标与「Mook」名称，导航更紧凑
 - **macOS 首次运行提示**：安装包未做代码签名，若提示「无法验证开发者」，请右键 →「打开」，或执行 `xattr -dr com.apple.quarantine ./mook`
 
-### 未发布
+### v0.4.2
 
 - **飞牛 fnOS 应用包支持外部 Agent 直连**：修正套件版「只能通过统一网关访问、插件连不上」的问题。容器除供网关使用的 Unix Socket 外，**同时发布宿主机端口**（`checkport=true`，由飞牛分配/校验），外部程序可通过 `http://<NAS>:<端口>` 直连
   - 后端 TCP 与 Socket 监听本就并存（`backend/main.go`），补齐端口映射即可，两种访问方式互不影响
