@@ -114,7 +114,7 @@ function handler(fn) {
 
 const server = new McpServer({
   name: 'mook',
-  version: '0.4.2',
+  version: '0.4.3',
 })
 
 // ---------------------------------------------------------------------------

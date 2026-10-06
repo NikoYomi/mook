@@ -1,0 +1,21 @@
+[
+  {
+    "stepTitle": "Mook 服务端口",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "修改端口后请重启应用使其生效。已保存的访问密钥与服务器配置不受影响。"
+      },
+      {
+        "type": "text",
+        "field": "mook_web_port",
+        "label": "直连端口（默认 5866）",
+        "initValue": "5866",
+        "rules": [
+          { "required": true, "message": "请输入端口号" },
+          { "pattern": "^[0-9]+$", "message": "端口只能包含数字" }
+        ]
+      }
+    ]
+  }
+]

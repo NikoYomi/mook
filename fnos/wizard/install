@@ -1,0 +1,21 @@
+[
+  {
+    "stepTitle": "Mook 服务端口",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "Mook 同时通过两种方式对外提供服务：飞牛桌面图标走统一网关（复用 NAS 登录态），外部程序（dsh-mook-skill 插件、MCP 客户端、脚本）走下面的直连端口。直连端口使用 Mook 自己的登录与访问密钥体系，不经过飞牛登录态。"
+      },
+      {
+        "type": "text",
+        "field": "mook_web_port",
+        "label": "直连端口（默认 5866）",
+        "initValue": "5866",
+        "rules": [
+          { "required": true, "message": "请输入端口号" },
+          { "pattern": "^[0-9]+$", "message": "端口只能包含数字" }
+        ]
+      }
+    ]
+  }
+]

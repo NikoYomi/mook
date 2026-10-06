@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.4.2-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.4.3-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.4.2** 
+**当前版本：v0.4.3** 
 
 > 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
@@ -266,7 +266,7 @@ export MOOK_API_KEY=mk_你的密钥
 - ✅ v0.3.0 —— 发布产物精简为 3 个并统一命名 / Windows 真安装程序 / 终端选中即复制与双击粘贴
 - ✅ v0.3.1 —— 安全修复：登录限流恢复生效 / 限流内存回收 / 可信代理开关 / 口令下限与 Cookie 加固
 - ✅ v0.4.0 —— 访问密钥（API Key）+ Agent 接口 + MCP 服务器，外部 Agent 可接入管理服务器与常用命令
-- ✅ v0.4.2 —— 飞牛 fnOS 套件版开放宿主机端口，外部 Agent / 插件可直连（当前）
+- ✅ v0.4.3 —— 飞牛 fnOS 套件版开放宿主机端口（安装向导选端口），外部 Agent / 插件可直连（当前）
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
 - ⏳ v2.0 —— AI DevOps 助手
@@ -315,12 +315,18 @@ export MOOK_API_KEY=mk_你的密钥
 - **界面精简**：移除主页左上角的图标与「Mook」名称，导航更紧凑
 - **macOS 首次运行提示**：安装包未做代码签名，若提示「无法验证开发者」，请右键 →「打开」，或执行 `xattr -dr com.apple.quarantine ./mook`
 
-### v0.4.2
+### v0.4.3
 
-- **飞牛 fnOS 应用包支持外部 Agent 直连**：修正套件版「只能通过统一网关访问、插件连不上」的问题。容器除供网关使用的 Unix Socket 外，**同时发布宿主机端口**（`checkport=true`，由飞牛分配/校验），外部程序可通过 `http://<NAS>:<端口>` 直连
+- **飞牛 fnOS 应用包端口改为安装向导选择**（修复 v0.4.2 套件版装完仍是旧版、插件连不上的问题）
+  - v0.4.2 误用了 `${TRIM_SERVICE_PORT}` 并配 `checkport=true`，但既无 `service_port` 也无 `wizard/`，飞牛没有端口可校验，配置流程走不完
+  - 现改为官方标准形态：`manifest` 声明 `service_port=5866` + `checkport=false`，新增 `wizard/install` 在**安装向导里让用户选端口**（默认 5866），compose 用 `"${mook_web_port:-5866}:5866"`
+  - 新增 `wizard/config`，装完后可在应用设置里随时改端口，无需卸载重装
+  - **装完即可用**：端口自动生效，不需要用户做任何额外操作
+- **飞牛 fnOS 应用包支持外部 Agent 直连**：容器除供网关使用的 Unix Socket 外，**同时发布宿主机端口**，外部程序可通过 `http://<NAS>:<端口>` 直连
   - 后端 TCP 与 Socket 监听本就并存（`backend/main.go`），补齐端口映射即可，两种访问方式互不影响
   - 直连端口走 Mook 自己的登录与访问密钥体系，不经过飞牛登录态，与独立 Docker 部署一致
   - 应用中心主图标仍走网关（iframe + 登录态），另注册一个隐藏入口 `mook.direct` 承载直连地址
+- **修复套件版升级后容器不重建**：`cmd/upgrade_callback` 此前只 `docker pull`，而 compose 变更（端口映射、镜像标签）不会让既有容器换用新配置 —— 表现为「应用中心显示新版，容器里跑的仍是旧版」。现在升级时显式 `up -d --force-recreate`，用户数据卷不受影响
 
 ### v0.2.9
 
