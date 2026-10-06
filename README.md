@@ -45,6 +45,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - 🤖 **AI 助手**：OpenAI 兼容接口（DeepSeek / OpenAI / Gemini / Kimi / 智谱 / Ollama / 自定义厂商），自动获取模型
 - 💾 **备份与还原**：一键导出 / 导入全部服务器、AI 设置与常用命令
 - 🎨 **主题与多语言**：亮色 / 暗色 / 跟随系统三态主题，中 / 英界面切换
+- 🔑 **访问密钥 + Agent 接口**：创建带权限范围的 API Key，让外部 Agent 通过 `/api/agent/*` 管理服务器、执行命令、读写文件、编辑常用命令
 - 🐳 **单容器 Docker 部署**：端口 **5866**，数据持久化
 
 ---
@@ -217,6 +218,39 @@ mook/
 
 ---
 
+## 🔌 Mook 插件（外部 Agent 接入）
+
+Mook 可以把托管能力交给外部 Agent —— 在 **设置 → 访问密钥** 创建一个带权限范围的密钥，
+Agent 就能通过 `/api/agent/*` 管理服务器、执行命令、读写文件、编辑常用命令。
+
+配套插件 **[dsh-mook-skill](https://github.com/NikoYomi/dsh-mook-skill)** 让
+**DeepSeek Harness** 的 Agent 开箱即用（含技能文档 + MCP 服务器，14 个工具）：
+
+```bash
+git clone https://github.com/NikoYomi/dsh-mook-skill.git
+cd dsh-mook-skill
+./install.sh                        # 安装技能到 DSH 技能根
+```
+
+然后在 Mook 里建密钥，并配置两个环境变量：
+
+```bash
+export MOOK_URL=http://你的地址:5866    # 不要尾斜杠
+export MOOK_API_KEY=mk_你的密钥
+```
+
+| 需要的密钥权限 | 能做什么 |
+| --- | --- |
+| `servers:read` / `commands:read` | 查看服务器与常用命令（**新建密钥默认只有这两项**） |
+| `commands:write` | 增删改常用命令 |
+| `servers:write` | 增删改服务器 |
+| `servers:exec` | ⚠️ 远程执行命令、读写文件 —— 等于交出 shell，默认不勾选 |
+
+> 技能与 MCP 的详细安装、接口字段、排错见插件仓库的 README 与 `skills/mook/`。
+> 账户与备份接口**刻意不对外开放**，Agent 只能操作服务器与常用命令。
+
+---
+
 ## 🗺️ 开发路线
 
 - ✅ v0.1 —— 基础 SSH 终端 + AI 助手
@@ -251,7 +285,8 @@ mook/
   - 鉴权支持 `Authorization: Bearer <key>` 与 `X-API-Key: <key>`
   - 远程执行默认超时 60 秒、上限 600 秒；读文件上限 1 MiB
   - 面向浏览器会话的接口与密钥鉴权**并存但隔离**，账户改密与备份导出等高风险操作**不对外开放**
-- **MCP 服务器**：仓库新增 `mcp/` 目录，开箱即用的 MCP 服务器把上述接口封装成 14 个工具，Claude Desktop / Cursor / Cline 等客户端配置 `MOOK_URL` 与 `MOOK_API_KEY` 即可接入
+- **MCP 服务器**：仓库新增 `mcp/` 目录，开箱即用的 MCP 服务器把上述接口封装成 14 个工具，配置 `MOOK_URL` 与 `MOOK_API_KEY` 即可接入
+- **配套插件 [dsh-mook-skill](https://github.com/NikoYomi/dsh-mook-skill)**：面向 DeepSeek Harness 的技能文档 + MCP 打包，`git clone` 后 `./install.sh` 一步装好（独立仓库维护）
 - **常用命令支持单条增删改**：后端新增按 id 的读取 / 新增 / 更新 / 删除，Agent 改一条命令不再需要重写整份列表（前端原有的全量保存路径保持不变）
 - 访问日志新增 `[agent]` 记录，**只记密钥 id、方法、路径与状态码**，不记录命令内容、主机与文件路径
 
@@ -383,4 +418,5 @@ mook/
 - [完整使用介绍（博客）](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 - [API 一览](docs/API.md)
 - [MCP 服务器（外部 Agent 接入）](mcp/README.md)
+- [插件 dsh-mook-skill（DeepSeek Harness 技能 + MCP）](https://github.com/NikoYomi/dsh-mook-skill)
 - 开发变更记录保存在本地工作区「计划」文件夹（不随仓库发布）
