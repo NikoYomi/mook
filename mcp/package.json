@@ -1,6 +1,6 @@
 {
   "name": "mook-mcp",
-  "version": "0.4.3",
+  "version": "0.4.5",
   "description": "Mook MCP Server —— 让支持 MCP 的 Agent 通过访问密钥管理 Mook 上托管的服务器与常用命令",
   "type": "module",
   "bin": {

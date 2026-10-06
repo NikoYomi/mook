@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"os"
@@ -99,13 +100,43 @@ func NewRouter(cfg *config.Config, db *sql.DB, secret string) http.Handler {
 	return logRequests(mux)
 }
 
+// baseHrefFor 推导注入 index.html 的 <base href>。
+//
+// 判定依据不是当前路径（网关侧的前缀已被上游剥离），而是上游在剥离前打的标记：
+// 带前缀的请求用配置前缀，直连端口的请求用 "/"。这样同一份构建产物在网关与
+// 直连端口两条链路上都能正确加载静态资源。
+func baseHrefFor(r *http.Request, basePath, gatewayBase string) string {
+	if basePath == "" {
+		return "/"
+	}
+	if marked, _ := r.Context().Value(basePrefixCtxKey{}).(bool); marked {
+		return gatewayBase
+	}
+	return "/"
+}
+
+// basePrefixCtxKey 标记「本请求在路由前带有外部访问前缀」（飞牛网关链路）。
+// 键定义在 api 包、由 main 包在剥离路径前通过 WithBasePrefixMark 写入，
+// 保证同一次请求内两边看到的是同一个键值。
+type basePrefixCtxKey struct{}
+
+// WithBasePrefixMark 在路径被剥离**之前**打标记：本次请求带有外部访问前缀。
+// 由 main 包的 stripBasePath 调用，router 侧据此决定注入的 <base href>。
+func WithBasePrefixMark(r *http.Request) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), basePrefixCtxKey{}, true))
+}
+
 func serveFrontend(cfg *config.Config) http.Handler {
 	dist := cfg.FrontendDir
 
-	// 外部访问前缀：独立部署为 "/"，飞牛 fnOS 统一网关下为 "/app/mook/"
-	baseHref := "/"
+	// 外部访问前缀：独立部署为 "/"，飞牛 fnOS 统一网关下为 "/app/mook/"。
+	//
+	// 直连端口（TCP）上同一份产物可能从根路径访问，此时若仍写死网关前缀，
+	// 前端会去 /app/mook/ 取资源而落空。因此 <base> 跟随**本次请求实际所在的
+	// 前缀**：请求带了配置的前缀就用它，没带就用 "/"。
+	gatewayBase := "/"
 	if cfg.BasePath != "" {
-		baseHref = cfg.BasePath + "/"
+		gatewayBase = cfg.BasePath + "/"
 	}
 
 	if _, err := os.Stat(dist); err != nil {
@@ -132,7 +163,7 @@ func serveFrontend(cfg *config.Config) http.Handler {
 			return
 		}
 		html := strings.Replace(string(raw), "<head>", `<head>
-    <base href="`+baseHref+`" />`, 1)
+    <base href="`+baseHrefFor(r, cfg.BasePath, gatewayBase)+`" />`, 1)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = w.Write([]byte(html))

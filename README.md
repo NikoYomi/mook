@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.4.3-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.4.5-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.4.3** 
+**当前版本：v0.4.5** 
 
 > 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
@@ -266,7 +266,8 @@ export MOOK_API_KEY=mk_你的密钥
 - ✅ v0.3.0 —— 发布产物精简为 3 个并统一命名 / Windows 真安装程序 / 终端选中即复制与双击粘贴
 - ✅ v0.3.1 —— 安全修复：登录限流恢复生效 / 限流内存回收 / 可信代理开关 / 口令下限与 Cookie 加固
 - ✅ v0.4.0 —— 访问密钥（API Key）+ Agent 接口 + MCP 服务器，外部 Agent 可接入管理服务器与常用命令
-- ✅ v0.4.3 —— 飞牛 fnOS 套件版开放宿主机端口（安装向导选端口），外部 Agent / 插件可直连（当前）
+- ✅ v0.4.3 —— 飞牛 fnOS 套件版开放宿主机端口（安装向导选端口），外部 Agent / 插件可直连
+- ✅ v0.4.5 —— 修复套件版直连端口 404：TCP 侧同时接受带前缀与不带前缀的路径（当前）
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
 - ⏳ v2.0 —— AI DevOps 助手
@@ -314,6 +315,19 @@ export MOOK_API_KEY=mk_你的密钥
 - **终端双击粘贴**：在终端界面双击即可把剪贴板内容粘贴进去（`Shift+V` 同样可用）；剪贴板读取受浏览器安全策略限制，非 HTTPS / localhost 环境会给出提示
 - **界面精简**：移除主页左上角的图标与「Mook」名称，导航更紧凑
 - **macOS 首次运行提示**：安装包未做代码签名，若提示「无法验证开发者」，请右键 →「打开」，或执行 `xattr -dr com.apple.quarantine ./mook`
+
+### v0.4.5
+
+- **修复飞牛套件版直连端口上 `/api/*` 全部 404 的问题**
+  - 根因：`stripBasePath` 把**不带 `MOOK_BASE_PATH` 前缀**的路径一律 404。套件版必须设
+    `MOOK_BASE_PATH=/app/mook`（统一网关需要），于是直连端口的 `/api/agent/*` 全不可达，
+    插件只能看到 `404 page not found`，报「Mook 没有返回 JSON」
+  - 修法：TCP 与 Unix Socket 两个监听口采用**不同**的前缀策略 —— Socket（网关侧）
+    仍严守前缀，TCP（直连侧）同时接受带前缀与不带前缀两种路径
+  - 安全性不变：前缀剥离不构成鉴权，每个 `/api/*` 仍各自要求会话 Cookie 或 API 密钥
+- **修复直连端口上前端资源取不到的问题**
+  - `<base href>` 改为跟随本次请求实际所在的路径：网关请求注入 `/app/mook/`，
+    直连请求注入 `/`（上游在剥离前缀前打 context 标记，因为剥离后就认不出原前缀）
 
 ### v0.4.3
 

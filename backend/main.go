@@ -60,14 +60,25 @@ func main() {
 	// 路由
 	router := api.NewRouter(cfg, db, secret)
 
-	// 外部访问前缀：仅在配置了 MOOK_BASE_PATH 时剥离。
-	// 飞牛 fnOS 统一网关会把 /app/mook/* 原样转发过来，需要还原成 /*。
-	var root http.Handler = router
+	// 外部访问前缀：仅在配置了 MOOK_BASE_PATH 时启用。
+	//
+	// 两个监听口的前缀策略**刻意不同**：
+	//
+	//   - Unix Socket（飞牛统一网关）：飞牛把 /app/mook/* 原样转发过来，因此
+	//     只接受带前缀的路径，其余一律 404 —— 避免子路径部署时被绕过前缀直接访问。
+	//
+	//   - TCP（本机 / 独立 Docker / 套件版直连端口）：外部程序（dsh-mook-skill、
+	//     MCP 客户端、脚本）拿到的是 http://<NAS>:<端口> 这样的服务根地址，
+	//     不会带 /app/mook 前缀。此前这里同样只认前缀，导致套件版直连端口上
+	//     所有 /api/* 都返回 404（插件报「Mook 没有返回 JSON（HTTP 404）」）。
+	//     TCP 侧因此**同时接受**带前缀与不带前缀两种路径。
+	var tcpHandler, socketHandler http.Handler = router, router
 	if cfg.BasePath != "" {
-		root = stripBasePath(cfg.BasePath, router)
+		socketHandler = stripBasePath(cfg.BasePath, router)
+		tcpHandler = acceptWithOrWithoutPrefix(cfg.BasePath, router)
 	}
 
-	log.Printf("Mook v0.4.3 已启动: http://localhost:%s", cfg.Port)
+	log.Printf("Mook v0.4.5 已启动: http://localhost:%s", cfg.Port)
 	log.Printf("数据目录: %s", cfg.DataDir)
 	if cfg.BasePath != "" {
 		log.Printf("外部访问前缀: %s", cfg.BasePath)
@@ -75,9 +86,9 @@ func main() {
 
 	errCh := make(chan error, 2)
 
-	// 1) TCP 监听 —— 本机访问与独立 Docker 部署
+	// 1) TCP 监听 —— 本机访问、独立 Docker 部署与套件版直连端口
 	go func() {
-		if err := http.ListenAndServe(":"+cfg.Port, root); err != nil {
+		if err := http.ListenAndServe(":"+cfg.Port, tcpHandler); err != nil {
 			errCh <- fmt.Errorf("HTTP 服务启动失败: %w", err)
 		}
 	}()
@@ -99,7 +110,7 @@ func main() {
 		}
 		log.Printf("Unix Socket 已监听: %s", cfg.SocketPath)
 		go func() {
-			if err := http.Serve(ln, root); err != nil {
+			if err := http.Serve(ln, socketHandler); err != nil {
 				errCh <- fmt.Errorf("Unix Socket 服务退出: %w", err)
 			}
 		}()
@@ -111,22 +122,44 @@ func main() {
 }
 
 // stripBasePath 剥离外部访问前缀。
-// 前缀之外的路径一律 404，避免应用在子路径部署时被意外直接访问。
+// 只接受带前缀的路径，前缀之外一律 404 —— 用于 Unix Socket（统一网关）侧，
+// 避免应用在子路径部署时被绕过前缀直接访问。
 func stripBasePath(prefix string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == prefix || r.URL.Path == prefix+"/":
-			serveWithPath(w, r, "/", h)
+			serveWithPath(w, r, "/", api.WithBasePrefixMark(r), h)
 		case strings.HasPrefix(r.URL.Path, prefix+"/"):
-			serveWithPath(w, r, strings.TrimPrefix(r.URL.Path, prefix), h)
+			serveWithPath(w, r, strings.TrimPrefix(r.URL.Path, prefix), api.WithBasePrefixMark(r), h)
 		default:
 			http.NotFound(w, r)
 		}
 	})
 }
 
-func serveWithPath(w http.ResponseWriter, r *http.Request, path string, h http.Handler) {
-	r2 := r.Clone(r.Context())
+// acceptWithOrWithoutPrefix 用于 TCP（直连端口）侧：同时接受带前缀与不带前缀的路径。
+//
+// 套件版必须设置 MOOK_BASE_PATH（统一网关需要它来还原 /app/mook/* 并注入
+// 前端 <base href>），但直连端口的使用者拿到的是服务根地址，不会带前缀。
+// 若这里沿用 stripBasePath 的「前缀之外一律 404」，直连端口上的 /api/* 会全部
+// 失效 —— 插件只会看到 `404 page not found`，进而报「Mook 没有返回 JSON」。
+//
+// 安全性：前缀剥离本身不构成鉴权，去掉前缀也不会绕过任何权限校验 ——
+// 每个 /api/* 路由仍各自要求会话 Cookie 或 API 密钥。这里放宽的只是路由
+// 可达性，不是访问控制。
+func acceptWithOrWithoutPrefix(prefix string, h http.Handler) http.Handler {
+	stripped := stripBasePath(prefix, h)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, prefix) {
+			stripped.ServeHTTP(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+func serveWithPath(w http.ResponseWriter, r *http.Request, path string, marked *http.Request, h http.Handler) {
+	r2 := r.Clone(marked.Context())
 	r2.URL.Path = path
 	// RawPath 只在它是 Path 的合法编码时才生效，这里直接清空以 Path 为准
 	r2.URL.RawPath = ""
