@@ -322,7 +322,7 @@ export default function Servers() {
         >
           <GithubIcon size={13} />
         </a>
-        <span>v0.4.5</span>
+        <span>v0.4.6</span>
       </footer>
 
       <Modal

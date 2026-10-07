@@ -4,7 +4,7 @@
   <img src="frontend/public/icon.png" alt="Mook" width="120" />
 </p>
 
-[![Version](https://img.shields.io/badge/version-v0.4.5-34c759.svg)](https://github.com/NikoYomi/mook)
+[![Version](https://img.shields.io/badge/version-v0.4.6-34c759.svg)](https://github.com/NikoYomi/mook)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#-license)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#-docker-%E9%83%A8%E7%BD%B2)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io/nikoyomi/mook-2496ED.svg)](#-docker-%E9%83%A8%E7%BD%B2)
@@ -21,7 +21,7 @@ Mook 是一个**自托管**的服务器运维工作台：把 Web SSH 终端、�
 - **浏览器即终端**：基于 xterm.js 的 Web SSH，多标签并行会话、自动重连、原生复制粘贴
 - **AI 写在骨子里**：对接 OpenAI 兼容接口，支持大模型辅助
 
-**当前版本：v0.4.5** 
+**当前版本：v0.4.6** 
 
 > 📖 **完整使用介绍**：[Mook —— 免费开源的自托管 AI 中端页面](https://blog.snty.de/archives/mookmian-fei-kai-yuan-de-aizhong-duan-ye-mian)
 
@@ -267,7 +267,8 @@ export MOOK_API_KEY=mk_你的密钥
 - ✅ v0.3.1 —— 安全修复：登录限流恢复生效 / 限流内存回收 / 可信代理开关 / 口令下限与 Cookie 加固
 - ✅ v0.4.0 —— 访问密钥（API Key）+ Agent 接口 + MCP 服务器，外部 Agent 可接入管理服务器与常用命令
 - ✅ v0.4.3 —— 飞牛 fnOS 套件版开放宿主机端口（安装向导选端口），外部 Agent / 插件可直连
-- ✅ v0.4.5 —— 修复套件版直连端口 404：TCP 侧同时接受带前缀与不带前缀的路径（当前）
+- ✅ v0.4.5 —— 修复套件版直连端口 404：TCP 侧同时接受带前缀与不带前缀的路径
+- ✅ v0.4.6 —— 访问密钥弹窗的 MOOK_URL 改用实际访问地址，不再写死 5866（当前）
 - ⏳ v0.5 —— 文件管理增强 + Docker 可视化管理（容器列表 / 启停 / 日志 / Shell）
 - ⏳ v1.0 —— Agent + Relay 中转同步
 - ⏳ v2.0 —— AI DevOps 助手
@@ -315,6 +316,19 @@ export MOOK_API_KEY=mk_你的密钥
 - **终端双击粘贴**：在终端界面双击即可把剪贴板内容粘贴进去（`Shift+V` 同样可用）；剪贴板读取受浏览器安全策略限制，非 HTTPS / localhost 环境会给出提示
 - **界面精简**：移除主页左上角的图标与「Mook」名称，导航更紧凑
 - **macOS 首次运行提示**：安装包未做代码签名，若提示「无法验证开发者」，请右键 →「打开」，或执行 `xattr -dr com.apple.quarantine ./mook`
+
+### v0.4.6
+
+- **修复创建访问密钥弹窗里的 `MOOK_URL` 写死 5866 的问题**
+  - 弹窗给出的 MCP 配置片段此前固定输出 `MOOK_URL=http://<你的-Mook-地址>:5866`。
+    但 5866 只是**容器内**的默认监听端口，并非用户实际访问的地址：
+    飞牛套件版端口由安装向导决定（v0.4.3 起可自选），独立 Docker 部署的宿主端口也可任意映射。
+    照抄这段配置必然连不上
+  - 修法：改为按当前页面地址生成 —— `window.location.origin + BASE_PATH`。
+    `BASE_PATH` 即后端注入的 `<base href>` 去掉尾斜杠，因此
+    独立部署得到 `http://<host>:<端口>`，飞牛网关部署得到 `http://<host>:<端口>/app/mook`，
+    两种形态都拿到实际可用的地址
+  - 同时补充说明：若 MCP 客户端运行在另一台机器上，需把主机名换成该机器能访问到的地址
 
 ### v0.4.5
 
