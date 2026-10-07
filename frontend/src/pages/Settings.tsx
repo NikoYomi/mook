@@ -2,7 +2,7 @@ import type { FormEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Modal from '../components/Modal'
-import { withBase } from '../api/base'
+import { withBase, BASE_PATH } from '../api/base'
 import { api, type ApiKey, type ApiKeyScopeDef, type BackupData, type CustomProviderSetting } from '../api/client'
 import { useAuth } from '../store/auth'
 import { useAi } from '../store/ai'
@@ -140,6 +140,15 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
   const newKeyBoxRef = useRef<HTMLDivElement>(null)
   const createdKeyBoxRef = useRef<HTMLDivElement>(null)
   const deleteKeyBoxRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * 当前 Mook 的真实访问地址，用于生成 MCP 客户端的 MOOK_URL。
+   *
+   * 不用 window.location.origin 直接拼：飞牛套件版会带 /app/mook 前缀，
+   * 而 BASE_PATH 正是后端注入的 <base href> 去掉尾斜杠的结果，
+   * 因此 origin + BASE_PATH 对独立部署（""）和网关部署（"/app/mook"）都成立。
+   */
+  const mookUrl = `${window.location.origin}${BASE_PATH}`
 
   const loadKeys = async () => {
     try {
@@ -1645,12 +1654,16 @@ export default function SettingsModal({ open, initialTab = 'general', onClose }:
                 <div className="rounded-lg border border-line bg-panel-2 p-3">
                   <p className="text-[12px] font-medium text-ink">配置到 MCP 客户端</p>
                   <p className="mt-1 text-[11px] text-soft">
-                    在客户端配置中填入以下环境变量，Mook 地址即你平时访问的地址：
+                    在客户端配置中填入以下环境变量：
                   </p>
                   <pre className="mt-2 overflow-x-auto rounded border border-line bg-canvas p-2.5 font-mono text-[11px] text-soft">
-{`MOOK_URL=http://<你的-Mook-地址>:5866
+{`MOOK_URL=${mookUrl}
 MOOK_API_KEY=${createdKey}`}
                   </pre>
+                  <p className="mt-2 text-[11px] text-soft">
+                    此处地址取自你当前访问 Mook 的地址。若客户端运行在另一台机器上，
+                    请把其中主机名换成该机器能访问到的地址（如内网 IP 或域名）。
+                  </p>
                 </div>
                 <div className="flex justify-end border-t border-line pt-4">
                   <button onClick={() => setCreatedKey(null)} className="btn-primary">
